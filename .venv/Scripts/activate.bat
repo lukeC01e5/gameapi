@@ -8,7 +8,7 @@ if defined _OLD_CODEPAGE (
     "%SystemRoot%\System32\chcp.com" 65001 > nul
 )
 
-set VIRTUAL_ENV=C:\Users\OEM\python-flask-mongodb-projects\rest-api-server\.venv
+set VIRTUAL_ENV=C:\Users\OEM\Documents\GitHub\gameapi\.venv
 
 if not defined PROMPT set PROMPT=$P$G
 
