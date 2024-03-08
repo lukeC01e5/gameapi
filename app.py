@@ -67,8 +67,13 @@ def handle_500_error(error):
 #    app.run(debug=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    app.run(debug=True,)
+    
+    
+'''   
     print(f"Debug: {app.debug}")
     print(f"Host: {app.run_host}")
     print(f"Port: {app.run_port}")
     app.run(host='0.0.0.0', port=5000, debug=False)
+''' 
