@@ -10,7 +10,8 @@ from flask_pymongo import PyMongo
 load_dotenv()
 
 app = Flask(__name__)
-app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData"
+#app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData"
+app.config["MONGO_URI"] = "mongodb+srv://colesluke:<password>@qrcluster.zxgcrnk.mongodb.net/?retryWrites=true&w=majority&appName=qrCluster"
 mongo = PyMongo(app)
 
 
