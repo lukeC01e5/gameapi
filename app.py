@@ -13,6 +13,13 @@ app = Flask(__name__)
 app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData"
 mongo = PyMongo(app)
 
+
+@app.route('/', methods=['GET'])
+def home():
+    return "Welcome to my API!"
+
+
+
 @app.route('/api/v1/resources', methods=['GET'])
 def get_resources():
     resources = mongo.db.Data.find()
@@ -64,6 +71,8 @@ def handle_500_error(error):
                                   "errorName": error.name}), 500)
 
 
+
+
 '''
 if __name__ == "__main__":
     app.run(debug=True,)
@@ -71,6 +80,8 @@ if __name__ == "__main__":
     
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)), debug=True)
+    
+    
     
     
 '''   
