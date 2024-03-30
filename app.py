@@ -10,10 +10,9 @@ from flask_pymongo import PyMongo
 load_dotenv()
 
 app = Flask(__name__)
-#mongodb+srv://colesluke:<password>@qrcluster.zxgcrnk.mongodb.net/?retryWrites=true&w=majority&appName=qrCluster
-#app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData"
+
 app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster"
-#app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster&ssl=true&ssl_cert_reqs=CERT_NONE"
+
 mongo = PyMongo(app)
 
 
@@ -37,15 +36,15 @@ def add_resource():
     resp.status_code = 200
     return resp
 
-@app.route('/api/v1/resources/<id>', methods=['DELETE'])
-def delete_resource(id):
+@app.route('/api/v1/resources', methods=['DELETE'])
+def delete_resource():
     mongo.db.Data.delete_one({'_id': ObjectId(id)})
     resp = jsonify({"message": "Resource deleted successfully"})
     resp.status_code = 200
     return resp 
 
-@app.route('/api/v1/resources/<id>', methods=['PUT'])
-def update_resource(id):
+@app.route('/api/v1/resources', methods=['PUT'])
+def update_resource():
     _json = request.json
     mongo.db.Data.update_one({'_id': ObjectId(id)}, {"$set": _json})
     resp = jsonify({"message": "Resource updated successfully"})
@@ -84,10 +83,3 @@ if __name__ == "__main__":
     
 '''  
     
-    
-'''   
-    print(f"Debug: {app.debug}")
-    print(f"Host: {app.run_host}")
-    print(f"Port: {app.run_port}")
-    app.run(host='0.0.0.0', port=5000, debug=False)
-''' 
