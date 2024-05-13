@@ -21,6 +21,27 @@ def home():
     return "Welcome to my API!"
 
 
+# Login route
+@app.route('/api/v1/login', methods=['POST'])
+def login():
+    # Get username and password from request
+    username = request.json.get('username')
+    password = request.json.get('password')
+
+    # Check if username and password are provided
+    if not username or not password:
+        return make_response(jsonify({"error": "Username and password are required"}), 400)
+
+    # Check if the username and password match with database records
+    user_data = mongo.db.Users.find_one({"username": username, "password": password})
+
+    if user_data:
+        # User authenticated successfully, return user-specific data
+        return jsonify(user_data)
+    else:
+        return make_response(jsonify({"error": "Invalid username or password"}), 401)
+
+
 
 @app.route('/api/v1/resources', methods=['GET'])
 def get_resources():
