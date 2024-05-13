@@ -40,8 +40,33 @@ def login():
         return jsonify(user_data)
     else:
         return make_response(jsonify({"error": "Invalid username or password"}), 401)
+    
+    
+# Account creation route
+@app.route('/api/v1/create_account', methods=['POST'])
+def create_account():
+    # Get username and password from request
+    username = request.json.get('username')
+    password = request.json.get('password')
 
+    # Check if username and password are provided
+    if not username or not password:
+        return make_response(jsonify({"error": "Username and password are required"}), 400)
 
+    # Check if a user with the given username already exists
+    existing_user = mongo.db.Users.find_one({"username": username})
+
+    if existing_user:
+        # User with the given username already exists, return an error
+        return make_response(jsonify({"error": "Username already taken"}), 409)
+    else:
+        # Insert a new user into the database
+        mongo.db.Users.insert_one({"username": username, "password": password})
+
+        return jsonify({"message": "Account created successfully"})   
+    
+    
+    
 
 @app.route('/api/v1/resources', methods=['GET'])
 def get_resources():
