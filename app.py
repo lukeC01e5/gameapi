@@ -116,16 +116,23 @@ def handle_500_error(error):
     return make_response(jsonify({"errorCode": error.code, 
                                   "errorDescription": "Internal Server Error",
                                   "errorDetailedDescription": error.description,
-                                  "errorName": error.name}), 500)
+                                  "errorName": error.name}), 500) 
+    
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Log the error
+    app.logger.error(str(e))
+
+    # Return a generic server error message
+    return make_response(jsonify({"errorCode": 500, 
+                                  "errorDescription": "Internal Server Error",
+                                  "errorDetailedDescription": str(e),
+                                  "errorName": "Internal Server Error"}), 500)
 
 
 if __name__ == "__main__":
     app.run(debug=True,)
 
 
-'''
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)), debug=True)
-    
-'''  
+
     
