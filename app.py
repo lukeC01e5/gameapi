@@ -6,11 +6,22 @@ from pymongo import MongoClient
 from bson.json_util import dumps
 from bson.objectid import ObjectId
 from flask_pymongo import PyMongo
+from bson import ObjectId
+from flask import Flask, json
+from flask.json import JSONEncoder
+
+
+class CustomJSONEncoder(JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, ObjectId):
+            return str(obj)
+        return super().default(obj)
+
 
 load_dotenv()
 
 app = Flask(__name__)
-
+app.json_encoder = CustomJSONEncoder
 app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster"
 
 mongo = PyMongo(app)
