@@ -77,37 +77,19 @@ def create_account():
         return jsonify({"message": "Account created successfully"})   
     
     
-@app.route('/api/v1/users/<id>/add_resource', methods=['POST'])
-def add_resource(id):
+@app.route('/api/v1/users/<user_id>/add_coin', methods=['POST'])
+def add_coin(user_id):
     try:
-        # Get the resource type and amount from the request body
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "No input data provided"}), 400
-
-        resource_type = data.get('resource_type')
-        amount = data.get('amount', 1)
-
-        # Check if resource type is provided
-        if not resource_type:
-            return jsonify({"error": "Resource type is required"}), 400
-
-        # Check if resource type is valid
-        valid_resources = ['plant', 'crystal', 'meat', 'wood', 'water', 'coin']
-        if resource_type not in valid_resources:
-            return jsonify({"error": "Invalid resource type"}), 400
-
-        # Add the resource to the user's account in the database
-        result = mongo.db.Users.update_one({"_id": ObjectId(id)}, {"$inc": {resource_type: amount}})
+        # Add one coin to the user's account in the database
+        result = mongo.db.Users.update_one({"_id": ObjectId(user_id)}, {"$inc": {"coin": 1}})
 
         if result.modified_count == 0:
             return jsonify({"error": "No user found with given id"}), 404
 
-        return jsonify({"message": f"{amount} {resource_type}(s) added successfully"}), 200
+        return jsonify({"message": "1 coin added successfully"}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
     
  
 
