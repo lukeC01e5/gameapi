@@ -52,7 +52,7 @@ def login():
     else:
         return make_response(jsonify({"error": "Invalid username or password"}), 401)
     
-    
+      
 # Account creation route
 @app.route('/api/v1/create_account', methods=['POST'])
 def create_account():
@@ -77,7 +77,44 @@ def create_account():
         return jsonify({"message": "Account created successfully"})   
     
     
+@app.route('/api/v1/users/<id>', methods=['PATCH'])
+def update_user(id):
+    # Get the updates from the request body
+    updates = request.get_json()
+
+    # Check if updates are provided
+    if not updates:
+        return make_response(jsonify({"error": "No updates provided"}), 400)
+
+    # Update the user in the database
+    mongo.db.Users.update_one({"_id": ObjectId(id)}, {"$set": updates})
+
+    return jsonify({"message": "User updated successfully"})   
+   
     
+@app.route('/api/v1/users/<id>/add_resource', methods=['POST'])
+def add_resource(id):
+    # Get the resource type and amount from the request body
+    resource_type = request.json.get('resource_type')
+    amount = request.json.get('amount', 1)
+
+    # Check if resource type is provided
+    if not resource_type:
+        return make_response(jsonify({"error": "Resource type is required"}), 400)
+
+    # Check if resource type is valid
+    valid_resources = ['plant', 'crystal', 'meat', 'wood', 'water', 'coin']
+    if resource_type not in valid_resources:
+        return make_response(jsonify({"error": "Invalid resource type"}), 400)
+
+    # Add the resource to the user's account in the database
+    mongo.db.Users.update_one({"_id": ObjectId(id)}, {"$inc": {resource_type: amount}})
+
+    return jsonify({"message": f"{amount} {resource_type}(s) added successfully"})   
+    
+    
+    
+ 
 
 @app.route('/api/v1/resources', methods=['GET'])
 def get_resources():
