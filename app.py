@@ -76,20 +76,6 @@ def create_account():
 
         return jsonify({"message": "Account created successfully"})   
     
-    
-@app.route('/api/v1/users/<id>', methods=['PATCH'])
-def update_user(id):
-    # Get the updates from the request body
-    updates = request.get_json()
-
-    # Check if updates are provided
-    if not updates:
-        return make_response(jsonify({"error": "No updates provided"}), 400)
-
-    # Update the user in the database
-    mongo.db.Users.update_one({"_id": ObjectId(id)}, {"$set": updates})
-
-    return jsonify({"message": "User updated successfully"})   
    
     
 @app.route('/api/v1/users/<id>/add_resource', methods=['POST'])
