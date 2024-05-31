@@ -77,21 +77,38 @@ def create_account():
         return jsonify({"message": "Account created successfully"})   
     
     
-@app.route('/api/v1/users/<user_id>/add_coin', methods=['POST'])
-def add_coin(user_id):
+@app.route('/api/v1/users/<username>/add_coin', methods=['POST'])
+def add_coin(username):
+    return add_item(username, "coin")
+
+@app.route('/api/v1/users/<username>/add_meat', methods=['POST'])
+def add_meat(username):
+    return add_item(username, "meat")
+
+@app.route('/api/v1/users/<username>/add_plant', methods=['POST'])
+def add_plant(username):
+    return add_item(username, "plant")
+
+@app.route('/api/v1/users/<username>/add_crystal', methods=['POST'])
+def add_crystal(username):
+    return add_item(username, "crystal")
+
+@app.route('/api/v1/users/<username>/add_water', methods=['POST'])
+def add_water(username):
+    return add_item(username, "water")
+
+def add_item(username, item):
     try:
-        # Add one coin to the user's account in the database
-        result = mongo.db.Users.update_one({"_id": ObjectId(user_id)}, {"$inc": {"coin": 1}})
+        # Add one item to the user's account in the database
+        result = mongo.db.Users.update_one({"username": username}, {"$inc": {item: 1}})
 
         if result.modified_count == 0:
-            return jsonify({"error": "No user found with given id"}), 404
+            return jsonify({"error": "No user found with given username"}), 404
 
-        return jsonify({"message": "1 coin added successfully"}), 200
+        return jsonify({"message": f"1 {item} added successfully"}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
- 
 
 @app.route('/api/v1/resources', methods=['GET'])
 def get_resources():
