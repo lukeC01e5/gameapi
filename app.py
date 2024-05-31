@@ -47,6 +47,7 @@ def login():
     user_data = mongo.db.Users.find_one({"username": username, "password": password})
 
     if user_data:
+        print(user_data)
         # User authenticated successfully, return user-specific data
         return jsonify(user_data)
     else:
