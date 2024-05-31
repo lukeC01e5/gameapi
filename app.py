@@ -54,6 +54,7 @@ def login():
     
       
 # Account creation route
+# Account creation route
 @app.route('/api/v1/create_account', methods=['POST'])
 def create_account():
     # Get username and password from request
@@ -72,9 +73,19 @@ def create_account():
         return make_response(jsonify({"error": "Username already taken"}), 409)
     else:
         # Insert a new user into the database
-        mongo.db.Users.insert_one({"username": username, "password": password})
+        mongo.db.Users.insert_one({
+            "username": username, 
+            "password": password, 
+            "coin": 0, 
+            "meat": 0, 
+            "plant": 0, 
+            "crystal": 0, 
+            "water": 0
+        })
 
         return jsonify({"message": "Account created successfully"})   
+    
+    
     
     
 @app.route('/api/v1/users/<username>/add_coin', methods=['POST'])
