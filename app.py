@@ -122,6 +122,69 @@ def add_item(username, item):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+
+@app.route('/api/v1/users/<username>/add_babyDragon', methods=['POST'])
+def add_babyDragon(username):
+    return add_creature(username, "babyDragon")
+
+@app.route('/api/v1/users/<username>/add_dinoEgg', methods=['POST'])
+def add_dinoEgg(username):
+    return add_creature(username, "dinoEgg")
+
+@app.route('/api/v1/users/<username>/add_wolfPup', methods=['POST'])
+def add_wolfPup(username):
+    return add_creature(username, "wolfPup")
+
+@app.route('/api/v1/users/<username>/add_kitten', methods=['POST'])
+def add_kitten(username):
+    return add_creature(username, "kitten")
+
+@app.route('/api/v1/users/<username>/add_chicky', methods=['POST'])
+def add_chicky(username):
+    return add_creature(username, "chicky")
+
+@app.route('/api/v1/users/<username>/add_fishy', methods=['POST'])
+def add_fishy(username):
+    return add_creature(username, "fishy")
+
+@app.route('/api/v1/users/<username>/add_squidy', methods=['POST'])
+def add_squidy(username):
+    return add_creature(username, "squidy")
+
+@app.route('/api/v1/users/<username>/add_larve', methods=['POST'])
+def add_larve(username):
+    return add_creature(username, "larve")
+
+@app.route('/api/v1/users/<username>/add_sprouty', methods=['POST'])
+def add_sprouty(username):
+    return add_creature(username, "sprouty")
+
+@app.route('/api/v1/users/<username>/add_roboCrab', methods=['POST'])
+def add_roboCrab(username):
+    return add_creature(username, "roboCrab")
+
+@app.route('/api/v1/users/<username>/add_ghost', methods=['POST'])
+def add_ghost(username):
+    return add_creature(username, "ghost")
+
+def add_creature(username, creature):
+    try:
+        # Add one creature to the user's account in the database
+        result = mongo.db.Users.update_one({"username": username}, {"$push": {"creatures": creature}})
+
+        if result.modified_count == 0:
+            return jsonify({"error": "No user found with given username"}), 404
+
+        return jsonify({"message": f"1 {creature} added successfully"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+
+
 @app.route('/api/v1/resources', methods=['GET'])
 def get_resources():
     resources = mongo.db.Data.find()
