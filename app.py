@@ -9,7 +9,7 @@ from flask_pymongo import PyMongo
 from bson import ObjectId
 from flask import Flask, json
 from flask.json import JSONEncoder
-from flask import Flask, render_template
+from flask import Flask, render_template, send_from_directory
 
 
 class CustomJSONEncoder(JSONEncoder):
@@ -28,9 +28,25 @@ app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zx
 mongo = PyMongo(app)
 
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+@app.route('/', methods=['GET'])
+def home():
+    return "Welcome to my API!"
+
+
+
+
+# Route to serve Unity WebGL build
+@app.route('/unity')
+def unity():
+    return render_template('unity_build/index.html')
+
+# Optional: Serve static files directly (e.g., .js, .data files)
+@app.route('/unity/<path:filename>')
+def unity_static(filename):
+    return send_from_directory('static/unity_build', filename)
+
+
+
 
 
 # Login route
