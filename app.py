@@ -10,6 +10,8 @@ from bson import ObjectId
 from flask import Flask, json
 from flask.json import JSONEncoder
 from flask import Flask, render_template, send_from_directory
+from whitenoise import WhiteNoise
+from flask_cors import CORS
 
 
 class CustomJSONEncoder(JSONEncoder):
@@ -22,7 +24,12 @@ class CustomJSONEncoder(JSONEncoder):
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)
 app.json_encoder = CustomJSONEncoder
+
+app.wsgi_app = WhiteNoise(app.wsgi_app, root='static/')
+
+
 app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster"
 
 mongo = PyMongo(app)
@@ -45,8 +52,6 @@ def unity_static(filename):
     return send_from_directory('static/unity_build', filename)
 
 
-
-
 # Login route
 @app.route('/api/v1/login', methods=['POST'])
 def login():
@@ -67,6 +72,8 @@ def login():
         return jsonify(user_data)
     else:
         return make_response(jsonify({"error": "Invalid username or password"}), 401)
+    
+    
     
       
 # Account creation route
