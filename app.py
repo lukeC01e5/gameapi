@@ -21,17 +21,17 @@ class CustomJSONEncoder(JSONEncoder):
 
 load_dotenv()
 
-app = Flask(__name__, static_folder='static')
+app = Flask(__name__)
 app.json_encoder = CustomJSONEncoder
 app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster"
 
 mongo = PyMongo(app)
 
 
-@app.route('/', methods=['GET'])
-def home():
-    return "Welcome to my API!"
+@app.route("/")
 
+def index():
+    return render_template("index.html")
 
 
 # Adjusted route to serve Unity WebGL build
