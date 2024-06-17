@@ -21,7 +21,7 @@ class CustomJSONEncoder(JSONEncoder):
 
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
 app.json_encoder = CustomJSONEncoder
 app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster"
 
@@ -34,17 +34,15 @@ def home():
 
 
 
-
-# Route to serve Unity WebGL build
+# Adjusted route to serve Unity WebGL build
 @app.route('/unity')
 def unity():
-    return render_template('unity_build/index.html')
+    return send_from_directory('static/unity_build', 'index.html')
 
-# Optional: Serve static files directly (e.g., .js, .data files)
+# Route to serve static files directly (e.g., .js, .data files)
 @app.route('/unity/<path:filename>')
 def unity_static(filename):
     return send_from_directory('static/unity_build', filename)
-
 
 
 
