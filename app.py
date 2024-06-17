@@ -9,6 +9,7 @@ from flask_pymongo import PyMongo
 from bson import ObjectId
 from flask import Flask, json
 from flask.json import JSONEncoder
+from flask import Flask, render_template
 
 
 class CustomJSONEncoder(JSONEncoder):
@@ -27,9 +28,9 @@ app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zx
 mongo = PyMongo(app)
 
 
-@app.route('/', methods=['GET'])
-def home():
-    return "Welcome to my API!"
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 
 # Login route
