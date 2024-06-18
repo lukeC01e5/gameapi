@@ -1,17 +1,14 @@
 
 import os
-from flask import Flask, Response, request, jsonify, make_response
+from flask import Flask, Response, render_template, request, jsonify, make_response
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from bson.json_util import dumps
 from bson.objectid import ObjectId
 from flask_pymongo import PyMongo
-from bson import ObjectId
-from flask import Flask, json
-from flask.json import JSONEncoder
-from flask import Flask, render_template, send_from_directory
-from whitenoise import WhiteNoise
+from flask.json import JSONEncoder  # Corrected import
 from flask_cors import CORS
+from flask import send_from_directory
 
 
 class CustomJSONEncoder(JSONEncoder):
@@ -20,14 +17,11 @@ class CustomJSONEncoder(JSONEncoder):
             return str(obj)
         return super().default(obj)
 
-
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
 app.json_encoder = CustomJSONEncoder
-
-app.wsgi_app = WhiteNoise(app.wsgi_app, root='static/')
+CORS(app)
 
 
 app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster"
@@ -36,20 +30,19 @@ mongo = PyMongo(app)
 
 
 @app.route("/")
-
 def index():
     return render_template("index.html")
 
 
 # Adjusted route to serve Unity WebGL build
-@app.route('/unity')
-def unity():
+#@app.route('/unity')
+#def unity():
     return send_from_directory('static/unity_build', 'index.html')
 
 # Route to serve static files directly (e.g., .js, .data files)
-@app.route('/unity/<path:filename>')
-def unity_static(filename):
-    return send_from_directory('static/unity_build', filename)
+#@app.route('/unity/<path:filename>')
+#def unity_static(filename):
+#    return send_from_directory('static/unity_build', filename)
 
 
 # Login route
@@ -75,8 +68,6 @@ def login():
     
     
     
-      
-# Account creation route
 # Account creation route
 @app.route('/api/v1/create_account', methods=['POST'])
 def create_account():
@@ -202,8 +193,6 @@ def add_creature(username, creature):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
 
 
 
