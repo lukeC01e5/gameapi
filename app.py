@@ -198,7 +198,7 @@ def add_creature(username, creature):
 
 @app.route('/api/v1/users', methods=['GET'])
 def get_resources():
-    resources = mongo.db.users.find()
+    resources = mongo.db.Data.find()
     resp = dumps(resources)
     return resp
 
