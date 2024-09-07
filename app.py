@@ -196,9 +196,9 @@ def add_creature(username, creature):
 
 
 
-@app.route('/api/v1/resources', methods=['GET'])
+@app.route('/api/v1/users', methods=['GET'])
 def get_resources():
-    resources = mongo.db.Data.find()
+    resources = mongo.db.users.find()
     resp = dumps(resources)
     return resp
 
@@ -206,14 +206,14 @@ def get_resources():
 def add_resource():
     _json = request.json
     mongo.db.Data.insert_one(_json)
-    resp = jsonify({"message": "Resource added successfully"})
+    resp = jsonify({"message": "Resource added  successfully"})
     resp.status_code = 200
     return resp
 
 @app.route('/api/v1/resources', methods=['DELETE'])
 def delete_resource():
     mongo.db.Data.delete_one({'_id': ObjectId(id)})
-    resp = jsonify({"message": "Resource deleted successfully"})
+    resp = jsonify({"message": "Resource deleted  successfully"})
     resp.status_code = 200
     return resp 
 
@@ -221,7 +221,7 @@ def delete_resource():
 def update_resource():
     _json = request.json
     mongo.db.Data.update_one({'_id': ObjectId(id)}, {"$set": _json})
-    resp = jsonify({"message": "Resource updated successfully"})
+    resp = jsonify({"message": "Resource updated  successfully"})
     resp.status_code = 200
     return resp
 
