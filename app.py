@@ -195,8 +195,18 @@ def add_creature(username, creature):
         return jsonify({"error": str(e)}), 500
 
 
-
 @app.route('/api/v1/users', methods=['GET'])
+def get_users():
+    try:
+        users = mongo.db.Users.find()
+        users_list = list(users)  # Convert cursor to list
+        return jsonify(users_list), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+@app.route('/api/v1/resources', methods=['GET'])
 def get_resources():
     resources = mongo.db.Data.find()
     resp = dumps(resources)
