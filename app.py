@@ -33,7 +33,7 @@ mongo = PyMongo(app)
 def index():
     return render_template("index.html")
 
-    return send_from_directory('static/unity_build', 'index.html')
+   # return send_from_directory('static/unity_build', 'index.html')
 
 
 
