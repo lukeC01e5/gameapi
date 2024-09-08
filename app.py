@@ -74,6 +74,7 @@ def create_account():
     # Get username and password from request
     username = request.json.get('username')
     password = request.json.get('password')
+    classroom = request.json.get('classroom')
 
     # Check if username and password are provided
     if not username or not password:
@@ -90,6 +91,7 @@ def create_account():
         mongo.db.Users.insert_one({
             "username": username, 
             "password": password, 
+            "classroom": classroom,
             "coin": 0, 
             "meat": 0, 
             "plant": 0, 
