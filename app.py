@@ -33,16 +33,8 @@ mongo = PyMongo(app)
 def index():
     return render_template("index.html")
 
-
-# Adjusted route to serve Unity WebGL build
-#@app.route('/unity')
-#def unity():
     return send_from_directory('static/unity_build', 'index.html')
 
-# Route to serve static files directly (e.g., .js, .data files)
-#@app.route('/unity/<path:filename>')
-#def unity_static(filename):
-#    return send_from_directory('static/unity_build', filename)
 
 
 # Login route
