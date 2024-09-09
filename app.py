@@ -36,6 +36,9 @@ def index():
    # return send_from_directory('static/unity_build', 'index.html')
 
 
+@app.route('/game')
+def game():
+    return render_template('game.html')
 
 # Login route
 @app.route('/api/v1/login', methods=['POST'])
