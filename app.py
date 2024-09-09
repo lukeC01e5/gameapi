@@ -19,7 +19,7 @@ class CustomJSONEncoder(JSONEncoder):
 
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', template_folder='templates')
 app.json_encoder = CustomJSONEncoder
 CORS(app)
 
