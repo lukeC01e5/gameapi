@@ -1,4 +1,3 @@
-
 import os
 from flask import Flask, Response, render_template, request, jsonify, make_response
 from dotenv import load_dotenv
@@ -23,19 +22,13 @@ app = Flask(__name__)
 app.json_encoder = CustomJSONEncoder
 CORS(app)
 
-
 app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster"
 
 mongo = PyMongo(app)
 
-
 @app.route("/")
 def index():
     return render_template("index.html")
-
-   # return send_from_directory('static/unity_build', 'index.html')
-
-
 
 # Login route
 @app.route('/api/v1/login', methods=['POST'])
@@ -57,13 +50,11 @@ def login():
         return jsonify(user_data)
     else:
         return make_response(jsonify({"error": "Invalid username or password"}), 401)
-    
-    
-    
+
 # Account creation route
 @app.route('/api/v1/create_account', methods=['POST'])
 def create_account():
-    # Get username and password from request
+    # Get username, password, and classroom from request
     username = request.json.get('username')
     password = request.json.get('password')
     classroom = request.json.get('classroom')
@@ -81,21 +72,19 @@ def create_account():
     else:
         # Insert a new user into the database
         mongo.db.Users.insert_one({
-            "username": username, 
-            "password": password, 
+            "username": username,
+            "password": password,
             "classroom": classroom,
-            "coin": 0, 
-            "meat": 0, 
-            "plant": 0, 
-            "crystal": 0, 
+            "coin": 0,
+            "meat": 0,
+            "plant": 0,
+            "crystal": 0,
             "water": 0
         })
 
-        return jsonify({"message": "Account created successfully"})   
-    
-    
-    
-    
+        return jsonify({"message": "Account created successfully"})
+
+# Add item routes
 @app.route('/api/v1/users/<username>/add_coin', methods=['POST'])
 def add_coin(username):
     return add_item(username, "coin")
@@ -129,8 +118,7 @@ def add_item(username, item):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-
+# Add creature routes
 @app.route('/api/v1/users/<username>/add_babyDragon', methods=['POST'])
 def add_babyDragon(username):
     return add_creature(username, "babyDragon")
@@ -188,7 +176,7 @@ def add_creature(username, creature):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
+# Get users route
 @app.route('/api/v1/users', methods=['GET'])
 def get_users():
     try:
@@ -198,8 +186,7 @@ def get_users():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-
+# Resource routes
 @app.route('/api/v1/resources', methods=['GET'])
 def get_resources():
     resources = mongo.db.Data.find()
@@ -210,61 +197,67 @@ def get_resources():
 def add_resource():
     _json = request.json
     mongo.db.Data.insert_one(_json)
-    resp = jsonify({"message": "Resource added  successfully"})
+    resp = jsonify({"message": "Resource added successfully"})
     resp.status_code = 200
     return resp
 
 @app.route('/api/v1/resources', methods=['DELETE'])
 def delete_resource():
     mongo.db.Data.delete_one({'_id': ObjectId(id)})
-    resp = jsonify({"message": "Resource deleted  successfully"})
+    resp = jsonify({"message": "Resource deleted successfully"})
     resp.status_code = 200
-    return resp 
+    return resp
 
 @app.route('/api/v1/resources', methods=['PUT'])
 def update_resource():
     _json = request.json
     mongo.db.Data.update_one({'_id': ObjectId(id)}, {"$set": _json})
-    resp = jsonify({"message": "Resource updated  successfully"})
+    resp = jsonify({"message": "Resource updated successfully"})
     resp.status_code = 200
     return resp
 
+# Error handlers
 @app.errorhandler(400)
 def handle_400_error(error):
-    return make_response(jsonify({"errorCode": error.code, 
-                                  "errorDescription": "Bad request!",
-                                  "errorDetailedDescription": error.description,
-                                  "errorName": error.name}), 400)
+    return make_response(jsonify({
+        "errorCode": error.code,
+        "errorDescription": "Bad request!",
+        "errorDetailedDescription": error.description,
+        "errorName": error.name
+    }), 400)
 
 @app.errorhandler(404)
 def handle_404_error(error):
-    return make_response(jsonify({"errorCode": error.code, 
-                                  "errorDescription": "Resource not found!",
-                                  "errorDetailedDescription": error.description,
-                                  "errorName": error.name}), 404)
+    return make_response(jsonify({
+        "errorCode": error.code,
+        "errorDescription": "Resource not found!",
+        "errorDetailedDescription": error.description,
+        "errorName": error.name
+    }), 404)
 
 @app.errorhandler(500)
 def handle_500_error(error):
-    return make_response(jsonify({"errorCode": error.code, 
-                                  "errorDescription": "Internal Server Error",
-                                  "errorDetailedDescription": error.description,
-                                  "errorName": error.name}), 500) 
-    
+    return make_response(jsonify({
+        "errorCode": error.code,
+        "errorDescription": "Internal Server Error",
+        "errorDetailedDescription": error.description,
+        "errorName": error.name
+    }), 500)
+
 @app.errorhandler(Exception)
 def handle_exception(e):
     # Log the error
     app.logger.error(str(e))
 
     # Return a generic server error message
-    return make_response(jsonify({"errorCode": 500, 
-                                  "errorDescription": "Internal Server Error",
-                                  "errorDetailedDescription": str(e),
-                                  "errorName": "Internal Server Error"}), 500)
-
+    return make_response(jsonify({
+        "errorCode": 500,
+        "errorDescription": "Internal Server Error",
+        "errorDetailedDescription": str(e),
+        "errorName": "Internal Server Error"
+    }), 500)
 
 if __name__ == "__main__":
-    app.run(debug=True,)
-
-
+    app.run(debug=True)
 
     
