@@ -1,8 +1,7 @@
 import os
-from flask import Flask, Response, render_template, request, jsonify, make_response
+from flask import Flask, send_from_directory, request, jsonify, make_response
 from dotenv import load_dotenv
 from pymongo import MongoClient
-from bson.json_util import dumps
 from bson.objectid import ObjectId
 from flask_pymongo import PyMongo
 from flask.json import JSONEncoder
@@ -17,20 +16,25 @@ class CustomJSONEncoder(JSONEncoder):
 
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
+
+@app.route('/')
+def serve_index():
+    return send_from_directory(app.static_folder, 'index.html')
+
+@app.route('/<path:path>')
+def serve_static(path):
+    return send_from_directory(app.static_folder, path)
+
 app.json_encoder = CustomJSONEncoder
 CORS(app)
 
-app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster"
+app.config["MONGO_URI"] = os.getenv("MONGO_URI", "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster")
 
 mongo = PyMongo(app)
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
-
-@app.route("/")
-def index():
-    return render_template("index.html")
 
 # Login route
 @app.route('/api/v1/login', methods=['POST'])
@@ -93,8 +97,6 @@ def create_account():
     except Exception as e:
         app.logger.error(f"Error during account creation: {str(e)}")
         return make_response(jsonify({"error": str(e)}), 500)
-
-
 
 # Add item routes
 @app.route('/api/v1/users/<username>/add_coin', methods=['POST'])
@@ -204,8 +206,6 @@ def get_users():
     except Exception as e:
         app.logger.error(f"Error fetching users: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
-
 
 # Error handlers
 @app.errorhandler(400)
