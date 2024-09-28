@@ -19,7 +19,7 @@ class CustomJSONEncoder(JSONEncoder):
 
 load_dotenv()
 
-app = Flask(__name__, static_folder='static', template_folder='templates')
+app = Flask(__name__)
 app.json_encoder = CustomJSONEncoder
 CORS(app)
 
@@ -36,9 +36,6 @@ def index():
    # return send_from_directory('static/unity_build', 'index.html')
 
 
-@app.route('/game')
-def game():
-    return render_template('index.html')
 
 # Login route
 @app.route('/api/v1/login', methods=['POST'])
