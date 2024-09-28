@@ -5,9 +5,8 @@ from pymongo import MongoClient
 from bson.json_util import dumps
 from bson.objectid import ObjectId
 from flask_pymongo import PyMongo
-from flask.json import JSONEncoder  # Corrected import
+from flask.json import JSONEncoder
 from flask_cors import CORS
-from flask import send_from_directory
 import logging
 
 class CustomJSONEncoder(JSONEncoder):
@@ -37,23 +36,19 @@ def index():
 @app.route('/api/v1/login', methods=['POST'])
 def login():
     try:
-        # Get username and password from request
         username = request.json.get('username')
         password = request.json.get('password')
 
         app.logger.debug(f"Login attempt with username: {username}")
 
-        # Check if username and password are provided
         if not username or not password:
             app.logger.error("Username and password are required")
             return make_response(jsonify({"error": "Username and password are required"}), 400)
 
-        # Check if the username and password match with database records
         user_data = mongo.db.Users.find_one({"username": username, "password": password})
 
         if user_data:
             app.logger.debug(f"User authenticated: {user_data}")
-            # User authenticated successfully, return user-specific data
             return jsonify(user_data)
         else:
             app.logger.error("Invalid username or password")
@@ -66,27 +61,22 @@ def login():
 @app.route('/api/v1/create_account', methods=['POST'])
 def create_account():
     try:
-        # Get username, password, and classroom from request
         username = request.json.get('username')
         password = request.json.get('password')
         classroom = request.json.get('classroom')
 
         app.logger.debug(f"Account creation attempt with username: {username}, classroom: {classroom}")
 
-        # Check if username and password are provided
         if not username or not password:
             app.logger.error("Username and password are required")
             return make_response(jsonify({"error": "Username and password are required"}), 400)
 
-        # Check if a user with the given username already exists
         existing_user = mongo.db.Users.find_one({"username": username})
 
         if existing_user:
             app.logger.error("Username already taken")
-            # User with the given username already exists, return an error
             return make_response(jsonify({"error": "Username already taken"}), 409)
         else:
-            # Insert a new user into the database
             mongo.db.Users.insert_one({
                 "username": username,
                 "password": password,
@@ -103,6 +93,8 @@ def create_account():
     except Exception as e:
         app.logger.error(f"Error during account creation: {str(e)}")
         return make_response(jsonify({"error": str(e)}), 500)
+
+
 
 # Add item routes
 @app.route('/api/v1/users/<username>/add_coin', methods=['POST'])
@@ -128,7 +120,6 @@ def add_water(username):
 def add_item(username, item):
     try:
         app.logger.debug(f"Adding {item} to user: {username}")
-        # Add one item to the user's account in the database
         result = mongo.db.Users.update_one({"username": username}, {"$inc": {item: 1}})
 
         if result.modified_count == 0:
@@ -190,7 +181,6 @@ def add_ghost(username):
 def add_creature(username, creature):
     try:
         app.logger.debug(f"Adding {creature} to user: {username}")
-        # Add one creature to the user's account in the database
         result = mongo.db.Users.update_one({"username": username}, {"$push": {"creatures": creature}})
 
         if result.modified_count == 0:
@@ -209,57 +199,13 @@ def add_creature(username, creature):
 def get_users():
     try:
         users = mongo.db.Users.find()
-        users_list = list(users)  # Convert cursor to list
+        users_list = list(users)
         return jsonify(users_list), 200
     except Exception as e:
         app.logger.error(f"Error fetching users: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-# Resource routes
-@app.route('/api/v1/resources', methods=['GET'])
-def get_resources():
-    try:
-        resources = mongo.db.Data.find()
-        resp = dumps(resources)
-        return resp
-    except Exception as e:
-        app.logger.error(f"Error fetching resources: {str(e)}")
-        return jsonify({"error": str(e)}), 500
 
-@app.route('/api/v1/resources', methods=['POST'])
-def add_resource():
-    try:
-        _json = request.json
-        mongo.db.Data.insert_one(_json)
-        resp = jsonify({"message": "Resource added successfully"})
-        resp.status_code = 200
-        return resp
-    except Exception as e:
-        app.logger.error(f"Error adding resource: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/v1/resources', methods=['DELETE'])
-def delete_resource():
-    try:
-        mongo.db.Data.delete_one({'_id': ObjectId(id)})
-        resp = jsonify({"message": "Resource deleted successfully"})
-        resp.status_code = 200
-        return resp
-    except Exception as e:
-        app.logger.error(f"Error deleting resource: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/v1/resources', methods=['PUT'])
-def update_resource():
-    try:
-        _json = request.json
-        mongo.db.Data.update_one({'_id': ObjectId(id)}, {"$set": _json})
-        resp = jsonify({"message": "Resource updated successfully"})
-        resp.status_code = 200
-        return resp
-    except Exception as e:
-        app.logger.error(f"Error updating resource: {str(e)}")
-        return jsonify({"error": str(e)}), 500
 
 # Error handlers
 @app.errorhandler(400)
@@ -291,10 +237,7 @@ def handle_500_error(error):
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    # Log the error
     app.logger.error(str(e))
-
-    # Return a generic server error message
     return make_response(jsonify({
         "errorCode": 500,
         "errorDescription": "Internal Server Error",
@@ -304,5 +247,3 @@ def handle_exception(e):
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-    
