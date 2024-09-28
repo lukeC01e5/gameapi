@@ -38,7 +38,7 @@ def index():
 
 @app.route('/game')
 def game():
-    return render_template('game.html')
+    return render_template('index.html')
 
 # Login route
 @app.route('/api/v1/login', methods=['POST'])
