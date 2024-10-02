@@ -18,9 +18,6 @@ load_dotenv()
 
 app = Flask(__name__, static_folder='static')
 
-# Configure CORS
-CORS(app, resources={r"/api/*": {"origins": "*"}})  # Allow all origins for API routes
-
 @app.route('/')
 def serve_index():
     return send_from_directory(app.static_folder, 'index.html')
@@ -30,6 +27,7 @@ def serve_static(path):
     return send_from_directory(app.static_folder, path)
 
 app.json_encoder = CustomJSONEncoder
+CORS(app)
 
 app.config["MONGO_URI"] = os.getenv("MONGO_URI", "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster")
 
