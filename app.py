@@ -1,8 +1,7 @@
 import os
-from flask import Flask, Response, render_template, request, jsonify, make_response, send_from_directory
+from flask import Flask, send_from_directory, request, jsonify, make_response
 from dotenv import load_dotenv
 from pymongo import MongoClient
-from bson.json_util import dumps
 from bson.objectid import ObjectId
 from flask_pymongo import PyMongo
 from flask.json import JSONEncoder
@@ -28,9 +27,9 @@ mongo = PyMongo(app)
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 
-@app.route("/")
-def index():
-    return render_template("index.html")
+@app.route('/')
+def serve_index():
+    return send_from_directory(app.static_folder, 'index.html')
 
 @app.route('/<path:path>')
 def serve_static(path):
