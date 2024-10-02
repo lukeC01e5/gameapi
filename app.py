@@ -1,12 +1,15 @@
+
 import os
-from flask import Flask, send_from_directory, request, jsonify, make_response
+from flask import Flask, Response, render_template, request, jsonify, make_response
 from dotenv import load_dotenv
 from pymongo import MongoClient
+from bson.json_util import dumps
 from bson.objectid import ObjectId
 from flask_pymongo import PyMongo
-from flask.json import JSONEncoder
+from flask.json import JSONEncoder  # Corrected import
 from flask_cors import CORS
-import logging
+from flask import send_from_directory
+
 
 class CustomJSONEncoder(JSONEncoder):
     def default(self, obj):
@@ -16,25 +19,23 @@ class CustomJSONEncoder(JSONEncoder):
 
 load_dotenv()
 
-app = Flask(__name__, static_folder='static')
-
-@app.route('/')
-def serve_index():
-    return send_from_directory(app.static_folder, 'index.html')
-
-@app.route('/<path:path>')
-def serve_static(path):
-    return send_from_directory(app.static_folder, path)
-
+app = Flask(__name__)
 app.json_encoder = CustomJSONEncoder
 CORS(app)
 
-app.config["MONGO_URI"] = os.getenv("MONGO_URI", "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster")
+
+app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster"
 
 mongo = PyMongo(app)
 
-# Set up logging
-logging.basicConfig(level=logging.DEBUG)
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+   # return send_from_directory('static/unity_build', 'index.html')
+
+
 
 # Login route
 @app.route('/api/v1/login', methods=['POST'])
