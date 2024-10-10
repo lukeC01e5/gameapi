@@ -1,1 +1,1 @@
-web: gunicorn app:appheroku logs --tail
+web: gunicorn app:app
