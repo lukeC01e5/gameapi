@@ -6,6 +6,7 @@ from bson.objectid import ObjectId
 from flask_pymongo import PyMongo
 from flask.json import JSONEncoder
 from flask_cors import CORS
+from whitenoise import WhiteNoise
 import logging
 
 class CustomJSONEncoder(JSONEncoder):
@@ -17,6 +18,7 @@ class CustomJSONEncoder(JSONEncoder):
 load_dotenv()
 
 app = Flask(__name__, static_folder='static')
+app.wsgi_app = WhiteNoise(app.wsgi_app, root='static/')
 app.json_encoder = CustomJSONEncoder
 CORS(app)
 
