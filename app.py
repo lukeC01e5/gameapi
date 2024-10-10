@@ -1,12 +1,13 @@
 import os
-from flask import Flask, send_from_directory, request, jsonify, make_response
+from flask import Flask, Response, request, jsonify, make_response, send_from_directory
 from dotenv import load_dotenv
 from pymongo import MongoClient
+from bson.json_util import dumps
 from bson.objectid import ObjectId
 from flask_pymongo import PyMongo
 from flask.json import JSONEncoder
 from flask_cors import CORS
-import logging
+from whitenoise import WhiteNoise
 
 class CustomJSONEncoder(JSONEncoder):
     def default(self, obj):
@@ -17,67 +18,76 @@ class CustomJSONEncoder(JSONEncoder):
 load_dotenv()
 
 app = Flask(__name__, static_folder='static')
-app.json_encoder = CustomJSONEncoder
-CORS(app)
+app.json_provider_class = CustomJSONEncoder
 
-app.config["MONGO_URI"] = os.getenv("MONGO_URI", "your_default_mongo_uri")
+# Configure CORS to allow requests from specific origins
+CORS(app, resources={r"/*": {"origins": ["http://127.0.0.1:5000", "http://localhost:5000"]}})
+
+app.config["MONGO_URI"] = os.getenv("MONGO_URI", "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster")
 
 mongo = PyMongo(app)
 
-# Set up logging
-logging.basicConfig(level=logging.DEBUG)
+# Configure WhiteNoise to serve static files
+app.wsgi_app = WhiteNoise(app.wsgi_app, root='static/')
 
 @app.route('/')
 def serve_index():
     return send_from_directory(app.static_folder, 'index.html')
 
-@app.route('/<path:path>')
-def serve_static(path):
-    return send_from_directory(app.static_folder, path)
+@app.route('/home', methods=['GET'])
+def home():
+    return "Welcome to my API!"
+
+# Serve static files from the Build directory
+@app.route('/static/Build/<path:filename>')
+def serve_build(filename):
+    return send_from_directory(os.path.join(app.static_folder, 'Build'), filename)
+
+@app.route('/static/TemplateData/<path:filename>')
+def serve_template_data(filename):
+    return send_from_directory(os.path.join(app.static_folder, 'TemplateData'), filename)
 
 # Login route
 @app.route('/api/v1/login', methods=['POST'])
 def login():
     try:
-        username = request.json.get('username')
-        password = request.json.get('password')
+        data = request.json
+        username = data.get('username')
+        password = data.get('password')
 
-        app.logger.debug(f"Login attempt with username: {username}")
+        app.logger.debug(f"Received login request for username: {username}")
 
         if not username or not password:
-            app.logger.error("Username and password are required")
+            app.logger.debug("Username or password missing in the request")
             return make_response(jsonify({"error": "Username and password are required"}), 400)
 
         user_data = mongo.db.Users.find_one({"username": username, "password": password})
 
         if user_data:
-            app.logger.debug(f"User authenticated: {user_data}")
+            app.logger.debug(f"User found: {user_data}")
             return jsonify(user_data)
         else:
-            app.logger.error("Invalid username or password")
+            app.logger.debug("Invalid username or password")
             return make_response(jsonify({"error": "Invalid username or password"}), 401)
     except Exception as e:
         app.logger.error(f"Error during login: {str(e)}")
-        return make_response(jsonify({"error": str(e)}), 500)
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 # Account creation route
 @app.route('/api/v1/create_account', methods=['POST'])
 def create_account():
     try:
-        username = request.json.get('username')
-        password = request.json.get('password')
-        classroom = request.json.get('classroom')
+        data = request.json
+        username = data.get('username')
+        password = data.get('password')
+        classroom = data.get('classroom')
 
-        app.logger.debug(f"Account creation attempt with username: {username}, classroom: {classroom}")
-
-        if not username or not password:
-            app.logger.error("Username and password are required")
-            return make_response(jsonify({"error": "Username and password are required"}), 400)
+        if not username or not password or not classroom:
+            return make_response(jsonify({"error": "Username, password, and classroom are required"}), 400)
 
         existing_user = mongo.db.Users.find_one({"username": username})
 
         if existing_user:
-            app.logger.error("Username already taken")
             return make_response(jsonify({"error": "Username already taken"}), 409)
         else:
             mongo.db.Users.insert_one({
@@ -91,11 +101,10 @@ def create_account():
                 "water": 0
             })
 
-            app.logger.debug("Account created successfully")
             return jsonify({"message": "Account created successfully"})
     except Exception as e:
         app.logger.error(f"Error during account creation: {str(e)}")
-        return make_response(jsonify({"error": str(e)}), 500)
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 # Add item routes
 @app.route('/api/v1/users/<username>/add_coin', methods=['POST'])
@@ -120,18 +129,15 @@ def add_water(username):
 
 def add_item(username, item):
     try:
-        app.logger.debug(f"Adding {item} to user: {username}")
         result = mongo.db.Users.update_one({"username": username}, {"$inc": {item: 1}})
 
         if result.modified_count == 0:
-            app.logger.error("No user found with given username")
             return jsonify({"error": "No user found with given username"}), 404
 
-        app.logger.debug(f"1 {item} added successfully")
         return jsonify({"message": f"1 {item} added successfully"}), 200
 
     except Exception as e:
-        app.logger.error(f"Error adding {item} to user: {str(e)}")
+        app.logger.error(f"Error adding item: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 # Add creature routes
@@ -181,29 +187,15 @@ def add_ghost(username):
 
 def add_creature(username, creature):
     try:
-        app.logger.debug(f"Adding {creature} to user: {username}")
         result = mongo.db.Users.update_one({"username": username}, {"$push": {"creatures": creature}})
 
         if result.modified_count == 0:
-            app.logger.error("No user found with given username")
             return jsonify({"error": "No user found with given username"}), 404
 
-        app.logger.debug(f"1 {creature} added successfully")
         return jsonify({"message": f"1 {creature} added successfully"}), 200
 
     except Exception as e:
-        app.logger.error(f"Error adding {creature} to user: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-# Get users route
-@app.route('/api/v1/users', methods=['GET'])
-def get_users():
-    try:
-        users = mongo.db.Users.find()
-        users_list = list(users)
-        return jsonify(users_list), 200
-    except Exception as e:
-        app.logger.error(f"Error fetching users: {str(e)}")
+        app.logger.error(f"Error adding creature: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 # Error handlers
