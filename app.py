@@ -1,15 +1,12 @@
-
 import os
-from flask import Flask, Response, render_template, request, jsonify, make_response
+from flask import Flask, render_template, request, jsonify, make_response, send_from_directory
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from bson.json_util import dumps
 from bson.objectid import ObjectId
 from flask_pymongo import PyMongo
-from flask.json import JSONEncoder  # Corrected import
+from flask.json import JSONEncoder
 from flask_cors import CORS
-from flask import send_from_directory
-
 
 class CustomJSONEncoder(JSONEncoder):
     def default(self, obj):
@@ -19,67 +16,59 @@ class CustomJSONEncoder(JSONEncoder):
 
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
 app.json_encoder = CustomJSONEncoder
 CORS(app)
 
-
-app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster"
-
+app.config["MONGO_URI"] = os.getenv("MONGO_URI", "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster")
 mongo = PyMongo(app)
-
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
-   # return send_from_directory('static/unity_build', 'index.html')
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory(app.static_folder, filename)
 
+@app.route('/TemplateData/<path:filename>')
+def serve_template_data(filename):
+    return send_from_directory(os.path.join(app.static_folder, 'TemplateData'), filename)
 
+@app.route('/Build/<path:filename>')
+def serve_build(filename):
+    return send_from_directory(os.path.join(app.static_folder, 'Build'), filename)
 
-# Login route
 @app.route('/api/v1/login', methods=['POST'])
 def login():
-    # Get username and password from request
     username = request.json.get('username')
     password = request.json.get('password')
 
-    # Check if username and password are provided
     if not username or not password:
         return make_response(jsonify({"error": "Username and password are required"}), 400)
 
-    # Check if the username and password match with database records
     user_data = mongo.db.Users.find_one({"username": username, "password": password})
 
     if user_data:
         print(user_data)
-        # User authenticated successfully, return user-specific data
         return jsonify(user_data)
     else:
         return make_response(jsonify({"error": "Invalid username or password"}), 401)
-    
-    
-    
-# Account creation route
+
 @app.route('/api/v1/create_account', methods=['POST'])
 def create_account():
-    # Get username and password from request
     username = request.json.get('username')
     password = request.json.get('password')
     classroom = request.json.get('classroom')
 
-    # Check if username and password are provided
     if not username or not password:
         return make_response(jsonify({"error": "Username and password are required"}), 400)
 
-    # Check if a user with the given username already exists
     existing_user = mongo.db.Users.find_one({"username": username})
 
     if existing_user:
-        # User with the given username already exists, return an error
         return make_response(jsonify({"error": "Username already taken"}), 409)
     else:
-        # Insert a new user into the database
         mongo.db.Users.insert_one({
             "username": username, 
             "password": password, 
@@ -92,10 +81,7 @@ def create_account():
         })
 
         return jsonify({"message": "Account created successfully"})   
-    
-    
-    
-    
+
 @app.route('/api/v1/users/<username>/add_coin', methods=['POST'])
 def add_coin(username):
     return add_item(username, "coin")
@@ -118,7 +104,6 @@ def add_water(username):
 
 def add_item(username, item):
     try:
-        # Add one item to the user's account in the database
         result = mongo.db.Users.update_one({"username": username}, {"$inc": {item: 1}})
 
         if result.modified_count == 0:
@@ -128,8 +113,6 @@ def add_item(username, item):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
 
 @app.route('/api/v1/users/<username>/add_babyDragon', methods=['POST'])
 def add_babyDragon(username):
@@ -177,7 +160,6 @@ def add_ghost(username):
 
 def add_creature(username, creature):
     try:
-        # Add one creature to the user's account in the database
         result = mongo.db.Users.update_one({"username": username}, {"$push": {"creatures": creature}})
 
         if result.modified_count == 0:
@@ -188,17 +170,14 @@ def add_creature(username, creature):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 @app.route('/api/v1/users', methods=['GET'])
 def get_users():
     try:
         users = mongo.db.Users.find()
-        users_list = list(users)  # Convert cursor to list
+        users_list = list(users)
         return jsonify(users_list), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
 
 @app.route('/api/v1/resources', methods=['GET'])
 def get_resources():
@@ -210,14 +189,14 @@ def get_resources():
 def add_resource():
     _json = request.json
     mongo.db.Data.insert_one(_json)
-    resp = jsonify({"message": "Resource added  successfully"})
+    resp = jsonify({"message": "Resource added successfully"})
     resp.status_code = 200
     return resp
 
 @app.route('/api/v1/resources', methods=['DELETE'])
 def delete_resource():
     mongo.db.Data.delete_one({'_id': ObjectId(id)})
-    resp = jsonify({"message": "Resource deleted  successfully"})
+    resp = jsonify({"message": "Resource deleted successfully"})
     resp.status_code = 200
     return resp 
 
@@ -225,7 +204,7 @@ def delete_resource():
 def update_resource():
     _json = request.json
     mongo.db.Data.update_one({'_id': ObjectId(id)}, {"$set": _json})
-    resp = jsonify({"message": "Resource updated  successfully"})
+    resp = jsonify({"message": "Resource updated successfully"})
     resp.status_code = 200
     return resp
 
@@ -249,22 +228,14 @@ def handle_500_error(error):
                                   "errorDescription": "Internal Server Error",
                                   "errorDetailedDescription": error.description,
                                   "errorName": error.name}), 500) 
-    
+
 @app.errorhandler(Exception)
 def handle_exception(e):
-    # Log the error
     app.logger.error(str(e))
-
-    # Return a generic server error message
     return make_response(jsonify({"errorCode": 500, 
                                   "errorDescription": "Internal Server Error",
                                   "errorDetailedDescription": str(e),
                                   "errorName": "Internal Server Error"}), 500)
 
-
 if __name__ == "__main__":
-    app.run(debug=True,)
-
-
-
-    
+    app.run(debug=True)
