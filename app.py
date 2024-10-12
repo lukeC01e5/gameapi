@@ -20,6 +20,7 @@ app = Flask(__name__, static_folder='static')
 app.json_encoder = CustomJSONEncoder
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
+# Ensure MongoDB connection string uses `mongodb+srv://` for TLS/SSL
 app.config["MONGO_URI"] = os.getenv("MONGO_URI", "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster")
 mongo = PyMongo(app)
 
