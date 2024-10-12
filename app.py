@@ -40,6 +40,11 @@ def serve_template_data(filename):
 def serve_build(filename):
     return send_from_directory(os.path.join(app.static_folder, 'Build'), filename)
 
+# Add this route to serve the .well-known directory
+@app.route('/.well-known/acme-challenge/<path:filename>')
+def serve_acme_challenge(filename):
+    return send_from_directory(os.path.join(app.static_folder, '.well-known', 'acme-challenge'), filename)
+
 @app.route('/api/v1/login', methods=['POST'])
 def login():
     username = request.json.get('username')
@@ -209,4 +214,4 @@ def handle_exception(e):
                                   "errorName": "Internal Server Error"}), 500)
 
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=80)
+    app.run(debug=True, host='0.0.0.0', port=443, ssl_context=('path/to/cert.pem', 'path/to/key.pem'))
