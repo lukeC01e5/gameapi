@@ -41,7 +41,7 @@ def serve_build(filename):
     return send_from_directory(os.path.join(app.static_folder, 'Build'), filename)
 
 # Add this route to serve the .well-known directory
-@app.route('/.well-known/acme-challenge/<path:filename>')
+@app.route('/.well-known/acme-challenge/v9dCTE7_yLpqUHC9gYCkhzLzLav7pan25zxdWT92sW8')
 def serve_acme_challenge(filename):
     return send_from_directory(os.path.join(app.static_folder, '.well-known', 'acme-challenge'), filename)
 
