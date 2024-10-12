@@ -18,7 +18,7 @@ load_dotenv()
 
 app = Flask(__name__, static_folder='static')
 app.json_encoder = CustomJSONEncoder
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 app.config["MONGO_URI"] = os.getenv("MONGO_URI", "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster")
 mongo = PyMongo(app)
@@ -50,7 +50,6 @@ def login():
     user_data = mongo.db.Users.find_one({"username": username, "password": password})
 
     if user_data:
-        print(user_data)
         return jsonify(user_data)
     else:
         return make_response(jsonify({"error": "Invalid username or password"}), 401)
@@ -178,35 +177,6 @@ def get_users():
         return jsonify(users_list), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-@app.route('/api/v1/resources', methods=['GET'])
-def get_resources():
-    resources = mongo.db.Data.find()
-    resp = dumps(resources)
-    return resp
-
-@app.route('/api/v1/resources', methods=['POST'])
-def add_resource():
-    _json = request.json
-    mongo.db.Data.insert_one(_json)
-    resp = jsonify({"message": "Resource added successfully"})
-    resp.status_code = 200
-    return resp
-
-@app.route('/api/v1/resources', methods=['DELETE'])
-def delete_resource():
-    mongo.db.Data.delete_one({'_id': ObjectId(id)})
-    resp = jsonify({"message": "Resource deleted successfully"})
-    resp.status_code = 200
-    return resp 
-
-@app.route('/api/v1/resources', methods=['PUT'])
-def update_resource():
-    _json = request.json
-    mongo.db.Data.update_one({'_id': ObjectId(id)}, {"$set": _json})
-    resp = jsonify({"message": "Resource updated successfully"})
-    resp.status_code = 200
-    return resp
 
 @app.errorhandler(400)
 def handle_400_error(error):
