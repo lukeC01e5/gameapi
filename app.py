@@ -1,14 +1,14 @@
 import os
-from flask import Flask, render_template, request, jsonify, make_response, send_from_directory
+from flask import Flask, Response, render_template, request, jsonify, make_response, send_from_directory
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from bson.json_util import dumps
 from bson.objectid import ObjectId
 from flask_pymongo import PyMongo
-from flask.json import JSONEncoder
+from flask.json.provider import DefaultJSONProvider  # Corrected import
 from flask_cors import CORS
 
-class CustomJSONEncoder(JSONEncoder):
+class CustomJSONProvider(DefaultJSONProvider):
     def default(self, obj):
         if isinstance(obj, ObjectId):
             return str(obj)
@@ -16,12 +16,12 @@ class CustomJSONEncoder(JSONEncoder):
 
 load_dotenv()
 
-app = Flask(__name__, static_folder='static')
-app.json_encoder = CustomJSONEncoder
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+app = Flask(__name__)
+app.json_provider_class = CustomJSONProvider
+CORS(app)
 
-# Ensure MongoDB connection string uses `mongodb+srv://` for TLS/SSL
-app.config["MONGO_URI"] = os.getenv("MONGO_URI", "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster")
+app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster"
+
 mongo = PyMongo(app)
 
 @app.route("/")
@@ -30,21 +30,17 @@ def index():
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):
-    return send_from_directory(app.static_folder, filename)
+    return send_from_directory('static', filename)
 
 @app.route('/TemplateData/<path:filename>')
 def serve_template_data(filename):
-    return send_from_directory(os.path.join(app.static_folder, 'TemplateData'), filename)
+    return send_from_directory('static/TemplateData', filename)
 
 @app.route('/Build/<path:filename>')
 def serve_build(filename):
-    return send_from_directory(os.path.join(app.static_folder, 'Build'), filename)
+    return send_from_directory('static/Build', filename)
 
-# Add this route to serve the .well-known directory
-@app.route('/.well-known/acme-challenge/v9dCTE7_yLpqUHC9gYCkhzLzLav7pan25zxdWT92sW8')
-def serve_acme_challenge(filename):
-    return send_from_directory(os.path.join(app.static_folder, '.well-known', 'acme-challenge'), filename)
-
+# Login route
 @app.route('/api/v1/login', methods=['POST'])
 def login():
     username = request.json.get('username')
@@ -56,10 +52,12 @@ def login():
     user_data = mongo.db.Users.find_one({"username": username, "password": password})
 
     if user_data:
+        print(user_data)
         return jsonify(user_data)
     else:
         return make_response(jsonify({"error": "Invalid username or password"}), 401)
 
+# Account creation route
 @app.route('/api/v1/create_account', methods=['POST'])
 def create_account():
     username = request.json.get('username')
@@ -204,7 +202,7 @@ def handle_500_error(error):
                                   "errorDescription": "Internal Server Error",
                                   "errorDetailedDescription": error.description,
                                   "errorName": error.name}), 500) 
-
+    
 @app.errorhandler(Exception)
 def handle_exception(e):
     app.logger.error(str(e))
@@ -214,4 +212,4 @@ def handle_exception(e):
                                   "errorName": "Internal Server Error"}), 500)
 
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=80)
+    app.run(debug=True)
