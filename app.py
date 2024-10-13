@@ -43,47 +43,59 @@ def serve_build(filename):
 # Login route
 @app.route('/api/v1/login', methods=['POST'])
 def login():
-    username = request.json.get('username')
-    password = request.json.get('password')
+    try:
+        username = request.json.get('username')
+        password = request.json.get('password')
 
-    if not username or not password:
-        return make_response(jsonify({"error": "Username and password are required"}), 400)
+        app.logger.debug(f"Login attempt with username: {username}")
 
-    user_data = mongo.db.Users.find_one({"username": username, "password": password})
+        if not username or not password:
+            app.logger.debug("Username or password not provided")
+            return make_response(jsonify({"error": "Username and password are required"}), 400)
 
-    if user_data:
-        print(user_data)
-        return jsonify(user_data)
-    else:
-        return make_response(jsonify({"error": "Invalid username or password"}), 401)
+        user_data = mongo.db.Users.find_one({"username": username, "password": password})
+
+        if user_data:
+            app.logger.debug(f"User authenticated: {user_data}")
+            return jsonify(user_data)
+        else:
+            app.logger.debug("Invalid username or password")
+            return make_response(jsonify({"error": "Invalid username or password"}), 401)
+    except Exception as e:
+        app.logger.error(f"Error during login: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 # Account creation route
 @app.route('/api/v1/create_account', methods=['POST'])
 def create_account():
-    username = request.json.get('username')
-    password = request.json.get('password')
-    classroom = request.json.get('classroom')
+    try:
+        username = request.json.get('username')
+        password = request.json.get('password')
+        classroom = request.json.get('classroom')
 
-    if not username or not password:
-        return make_response(jsonify({"error": "Username and password are required"}), 400)
+        if not username or not password:
+            return make_response(jsonify({"error": "Username and password are required"}), 400)
 
-    existing_user = mongo.db.Users.find_one({"username": username})
+        existing_user = mongo.db.Users.find_one({"username": username})
 
-    if existing_user:
-        return make_response(jsonify({"error": "Username already taken"}), 409)
-    else:
-        mongo.db.Users.insert_one({
-            "username": username, 
-            "password": password, 
-            "classroom": classroom,
-            "coin": 0, 
-            "meat": 0, 
-            "plant": 0, 
-            "crystal": 0, 
-            "water": 0
-        })
+        if existing_user:
+            return make_response(jsonify({"error": "Username already taken"}), 409)
+        else:
+            mongo.db.Users.insert_one({
+                "username": username, 
+                "password": password, 
+                "classroom": classroom,
+                "coin": 0, 
+                "meat": 0, 
+                "plant": 0, 
+                "crystal": 0, 
+                "water": 0
+            })
 
-        return jsonify({"message": "Account created successfully"})   
+            return jsonify({"message": "Account created successfully"})   
+    except Exception as e:
+        app.logger.error(f"Error during account creation: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 @app.route('/api/v1/users/<username>/add_coin', methods=['POST'])
 def add_coin(username):
@@ -115,6 +127,7 @@ def add_item(username, item):
         return jsonify({"message": f"1 {item} added successfully"}), 200
 
     except Exception as e:
+        app.logger.error(f"Error adding item {item} for user {username}: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/v1/users/<username>/add_babyDragon', methods=['POST'])
@@ -171,6 +184,7 @@ def add_creature(username, creature):
         return jsonify({"message": f"1 {creature} added successfully"}), 200
 
     except Exception as e:
+        app.logger.error(f"Error adding creature {creature} for user {username}: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/v1/users', methods=['GET'])
@@ -180,6 +194,7 @@ def get_users():
         users_list = list(users)
         return jsonify(users_list), 200
     except Exception as e:
+        app.logger.error(f"Error fetching users: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.errorhandler(400)
