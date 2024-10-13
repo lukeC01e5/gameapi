@@ -34,7 +34,7 @@ def apply_csp(response):
     csp = {
         'default-src': "'self'",
         'script-src': f"'self' 'nonce-{g.nonce}' 'unsafe-eval'",
-        'connect-src': "'self' https://gameapi-2e9bb6e38339.herokuapp.com"
+        'connect-src': "'self' http://gameapi-2e9bb6e38339.herokuapp.com https://gameapi-2e9bb6e38339.herokuapp.com"
     }
     policy = '; '.join(f"{k} {v}" for k, v in csp.items())
     response.headers['Content-Security-Policy'] = policy
@@ -60,6 +60,12 @@ def serve_template_data(filename):
 
 @app.route('/Build/<path:filename>')
 def serve_build(filename):
+    if filename.endswith('.js'):
+        return send_from_directory('static/Build', filename, mimetype='application/javascript')
+    elif filename.endswith('.wasm'):
+        return send_from_directory('static/Build', filename, mimetype='application/wasm')
+    elif filename.endswith('.data'):
+        return send_from_directory('static/Build', filename, mimetype='application/octet-stream')
     return send_from_directory('static/Build', filename)
 
 # Login route
