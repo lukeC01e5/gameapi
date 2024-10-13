@@ -1,12 +1,14 @@
 import os
-from flask import Flask, Response, render_template, request, jsonify, make_response, send_from_directory
+import uuid
+from flask import Flask, Response, render_template, request, jsonify, make_response, send_from_directory, g
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from bson.json_util import dumps
 from bson.objectid import ObjectId
 from flask_pymongo import PyMongo
-from flask.json.provider import DefaultJSONProvider  # Corrected import
+from flask.json.provider import DefaultJSONProvider
 from flask_cors import CORS
+from flask_talisman import Talisman
 
 class CustomJSONProvider(DefaultJSONProvider):
     def default(self, obj):
@@ -20,13 +22,33 @@ app = Flask(__name__)
 app.json_provider_class = CustomJSONProvider
 CORS(app)
 
+def generate_nonce():
+    return uuid.uuid4().hex
+
+@app.before_request
+def set_nonce():
+    g.nonce = generate_nonce()
+
+@app.after_request
+def apply_csp(response):
+    csp = {
+        'default-src': "'self'",
+        'script-src': f"'self' 'nonce-{g.nonce}' 'unsafe-eval'",
+        'connect-src': "'self' http://gameapi-2e9bb6e38339.herokuapp.com"
+    }
+    policy = '; '.join(f"{k} {v}" for k, v in csp.items())
+    response.headers['Content-Security-Policy'] = policy
+    return response
+
+Talisman(app, content_security_policy=None)
+
 app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster"
 
 mongo = PyMongo(app)
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", nonce=g.nonce)
 
 @app.route('/static/<path:filename>')
 def serve_static(filename):
