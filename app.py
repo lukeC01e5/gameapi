@@ -34,7 +34,7 @@ def apply_csp(response):
     csp = {
         'default-src': "'self'",
         'script-src': f"'self' 'nonce-{g.nonce}' 'unsafe-eval'",
-        'connect-src': "'self' http://gameapi-2e9bb6e38339.herokuapp.com"
+        'connect-src': "'self' https://gameapi-2e9bb6e38339.herokuapp.com"
     }
     policy = '; '.join(f"{k} {v}" for k, v in csp.items())
     response.headers['Content-Security-Policy'] = policy
