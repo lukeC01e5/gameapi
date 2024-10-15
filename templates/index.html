@@ -101,7 +101,7 @@
     </script>
 
     <!-- Register the Service Worker -->
-    <script>
+    <script nonce="{{ nonce }}">
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker
           .register("/static/service-worker.js")

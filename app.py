@@ -20,7 +20,12 @@ load_dotenv()
 
 app = Flask(__name__)
 app.json_provider_class = CustomJSONProvider
-CORS(app)
+
+# Configure CORS to allow specific origins
+CORS(app, resources={r"/*": {"origins": ["http://127.0.0.1:5000", "https://gameapi-2e9bb6e38339.herokuapp.com"]}})
+
+# Enforce HTTPS
+Talisman(app, content_security_policy=None)
 
 def generate_nonce():
     return uuid.uuid4().hex
@@ -34,13 +39,11 @@ def apply_csp(response):
     csp = {
         'default-src': "'self'",
         'script-src': f"'self' 'nonce-{g.nonce}' 'unsafe-eval'",
-        'connect-src': "'self' http://gameapi-2e9bb6e38339.herokuapp.com https://gameapi-2e9bb6e38339.herokuapp.com"
+        'connect-src': "'self' https://gameapi-2e9bb6e38339.herokuapp.com"
     }
     policy = '; '.join(f"{k} {v}" for k, v in csp.items())
     response.headers['Content-Security-Policy'] = policy
     return response
-
-Talisman(app, content_security_policy=None)
 
 app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster"
 
