@@ -39,7 +39,7 @@ def index():
    
    
    
-   @app.route("/api/v1/create_user_from_rfid", methods=["POST"])
+@app.route("/api/v1/create_user_from_rfid", methods=["POST"])
 def create_user_from_rfid():
     try:
         data = request.json  # Expected fields: age, coins, creatureType, customName, intVal
