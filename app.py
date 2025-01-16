@@ -75,6 +75,21 @@ def create_user_from_rfid():
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 
+@app.route("/api/v1/get_custom_names", methods=["GET"])
+def get_custom_names():
+    try:
+        # Retrieve only the 'customName' field from all documents
+        users = mongo.db.Users.find({}, {"_id": 0, "customName": 1})
+        
+        # Build a list of custom names
+        custom_names = [user["customName"] for user in users if "customName" in user]
+        
+        return jsonify(custom_names), 200
+    except Exception as e:
+        app.logger.error(f"Error fetching custom names: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+
 
 # Login route
 @app.route('/api/v1/login', methods=['POST'])
