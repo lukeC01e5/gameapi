@@ -38,27 +38,26 @@ def index():
    # return send_from_directory('static/unity_build', 'index.html')
    
 
-
 @app.route("/api/v1/add_5_coin", methods=["POST"])
 def add_5_coin():
     try:
-        # Expecting a JSON body with "userId"
+        # Expecting a JSON body with "customName"
         data = request.json
         if not data:
             return make_response(jsonify({"error": "No data provided"}), 400)
 
-        user_id = data.get("userId")
-        if not user_id:
-            return make_response(jsonify({"error": "userId is required"}), 400)
+        custom_name = data.get("customName")
+        if not custom_name:
+            return make_response(jsonify({"error": "customName is required"}), 400)
 
         # Attempt to update the user's coins by +5
         result = mongo.db.Users.update_one(
-            {"_id": ObjectId(user_id)},
+            {"customName": custom_name},
             {"$inc": {"coins": 5}}
         )
 
         if result.modified_count == 0:
-            return make_response(jsonify({"error": "No user found for given userId"}), 404)
+            return make_response(jsonify({"error": "No user found for given customName"}), 404)
 
         return jsonify({"message": "5 coins added successfully"}), 200
 
