@@ -1,4 +1,6 @@
 
+#latest version trying to add coin to user value
+
 import os
 from flask import Flask, Response, render_template, request, jsonify, make_response
 from dotenv import load_dotenv
@@ -35,8 +37,36 @@ def index():
 
    # return send_from_directory('static/unity_build', 'index.html')
    
-   
-   
+
+
+@app.route("/api/v1/add_5_coin", methods=["POST"])
+def add_5_coin():
+    try:
+        # Expecting a JSON body with "userId"
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+
+        user_id = data.get("userId")
+        if not user_id:
+            return make_response(jsonify({"error": "userId is required"}), 400)
+
+        # Attempt to update the user's coins by +5
+        result = mongo.db.Users.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$inc": {"coins": 5}}
+        )
+
+        if result.modified_count == 0:
+            return make_response(jsonify({"error": "No user found for given userId"}), 404)
+
+        return jsonify({"message": "5 coins added successfully"}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error adding 5 coins: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+
    
    
 @app.route("/api/v1/create_user_from_rfid", methods=["POST"])
