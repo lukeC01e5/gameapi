@@ -1,5 +1,5 @@
-
 #latest version trying to add coin to user value
+#trying to change to the new version with two rfid blocks
 
 import os
 from flask import Flask, Response, render_template, request, jsonify, make_response
@@ -71,28 +71,39 @@ def add_5_coin():
 @app.route("/api/v1/create_user_from_rfid", methods=["POST"])
 def create_user_from_rfid():
     try:
-        data = request.json  # Expected fields: age, coins, creatureType, customName, intVal
+        data = request.json
         if not data:
             return make_response(jsonify({"error": "No data provided"}), 400)
-        
-        # Extract data from the request
-        age = data.get("age")
-        coins = data.get("coins")
+
+        # Updated to match payload fields
+        year_level = data.get("yearLevel")
+        challenge_code = data.get("challengeCode")
+        wrong_guesses = data.get("wrongGuesses")
+        bool_val = data.get("boolVal")
         creature_type = data.get("creatureType")
+        artifact_value = data.get("artifactValue")
         custom_name = data.get("customName")
-        int_val = data.get("intVal")
-        
-        # Validate required fields
-        if age is None or coins is None or creature_type is None or custom_name is None or int_val is None:
+        coins = data.get("coins")
+
+        if (year_level is None
+            or challenge_code is None
+            or wrong_guesses is None
+            or bool_val is None
+            or creature_type is None
+            or artifact_value is None
+            or custom_name is None
+            or coins is None):
             return make_response(jsonify({"error": "Missing required fields"}), 400)
-        
-        # Create the user document
+
         user = {
-            "age": age,
-            "coins": coins,
+            "yearLevel": year_level,
+            "challengeCode": challenge_code,
+            "wrongGuesses": wrong_guesses,
+            "boolVal": bool_val,
             "creatureType": creature_type,
+            "artifactValue": artifact_value,
             "customName": custom_name,
-            "intVal": int_val
+            "coins": coins
         }
         
         # Insert the user into the database
@@ -272,4 +283,3 @@ if __name__ == "__main__":
 
 
 
-    
