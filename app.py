@@ -76,32 +76,31 @@ def create_user_from_rfid():
             return make_response(jsonify({"error": "No data provided"}), 400)
 
         # Updated to match payload fields
-        year_level = data.get("yearLevel")
+        # year_level = data.get("yearLevel")
         challenge_code = data.get("challengeCode")
         wrong_guesses = data.get("wrongGuesses")
         bool_val = data.get("boolVal")
-        creature_type = data.get("creatureType")
-        artifact_value = data.get("artifactValue")
+        # creature_type = data.get("creatureType")
+        # artifact_value = data.get("artifactValue")
         custom_name = data.get("customName")
         coins = data.get("coins")
 
-        if (year_level is None
-            or challenge_code is None
+        if (challenge_code is None
             or wrong_guesses is None
             or bool_val is None
-            or creature_type is None
-            or artifact_value is None
+            #or creature_type is None
+            #or artifact_value is None
             or custom_name is None
             or coins is None):
             return make_response(jsonify({"error": "Missing required fields"}), 400)
 
         user = {
-            "yearLevel": year_level,
+            #"yearLevel": year_level,
             "challengeCode": challenge_code,
             "wrongGuesses": wrong_guesses,
             "boolVal": bool_val,
-            "creatureType": creature_type,
-            "artifactValue": artifact_value,
+            #"creatureType": creature_type,
+            #"artifactValue": artifact_value,
             "customName": custom_name,
             "coins": coins
         }
