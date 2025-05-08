@@ -41,23 +41,23 @@ def index():
 @app.route("/api/v1/add_5_coin", methods=["POST"])
 def add_5_coin():
     try:
-        # Expecting a JSON body with "customName"
+        # Expecting a JSON body with "rfidUID"
         data = request.json
         if not data:
             return make_response(jsonify({"error": "No data provided"}), 400)
 
-        custom_name = data.get("customName")
-        if not custom_name:
-            return make_response(jsonify({"error": "customName is required"}), 400)
+        rfid_uid = data.get("rfidUID")
+        if not rfid_uid:
+            return make_response(jsonify({"error": "rfidUID is required"}), 400)
 
-        # Attempt to update the user's coins by +5
+        # Attempt to update the user's coins by +5 using rfidUID
         result = mongo.db.Users.update_one(
-            {"customName": custom_name},
+            {"rfidUID": rfid_uid},
             {"$inc": {"coins": 5}}
         )
 
         if result.modified_count == 0:
-            return make_response(jsonify({"error": "No user found for given customName"}), 404)
+            return make_response(jsonify({"error": "No user found for given rfidUID"}), 404)
 
         return jsonify({"message": "5 coins added successfully"}), 200
 
@@ -75,40 +75,43 @@ def create_user_from_rfid():
         if not data:
             return make_response(jsonify({"error": "No data provided"}), 400)
 
-        # Updated to match payload fields
-        # year_level = data.get("yearLevel")
-        challenge_code = data.get("challengeCode")
-        wrong_guesses = data.get("wrongGuesses")
-        bool_val = data.get("boolVal")
-        # creature_type = data.get("creatureType")
-        # artifact_value = data.get("artifactValue")
-        custom_name = data.get("customName")
-        coins = data.get("coins")
+        # Parse the fields from the updated payload in mainChange.cpp
+        name = data.get("name")
+        rfidUID = data.get("rfidUID")
+        mainCreature = data.get("mainCreature")
+        challengeCodes = data.get("challengeCodes")
+        creatures = data.get("creatures")
+        artifacts = data.get("artifacts")
 
-        if (challenge_code is None
-            or wrong_guesses is None
-            or bool_val is None
-            #or creature_type is None
-            #or artifact_value is None
-            or custom_name is None
-            or coins is None):
+        # Validate required fields
+        # Ensures all are present (and not None)
+        if not all([
+            name, 
+            rfidUID, 
+            mainCreature, 
+            challengeCodes is not None, 
+            creatures is not None, 
+            artifacts is not None
+        ]):
             return make_response(jsonify({"error": "Missing required fields"}), 400)
 
+        # Create the user document
         user = {
-            #"yearLevel": year_level,
-            "challengeCode": challenge_code,
-            "wrongGuesses": wrong_guesses,
-            "boolVal": bool_val,
-            #"creatureType": creature_type,
-            #"artifactValue": artifact_value,
-            "customName": custom_name,
-            "coins": coins
+            "name": name,
+            "rfidUID": rfidUID,
+            "mainCreature": mainCreature,
+            "challengeCodes": challengeCodes,
+            "creatures": creatures,
+            "artifacts": artifacts
         }
-        
+
         # Insert the user into the database
         result = mongo.db.Users.insert_one(user)
-        
-        return jsonify({"message": "User created successfully", "userId": str(result.inserted_id)}), 201
+
+        return jsonify({
+            "message": "User created successfully", 
+            "userId": str(result.inserted_id)
+        }), 201
     except Exception as e:
         app.logger.error(f"Error creating user from RFID data: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
@@ -128,79 +131,6 @@ def get_custom_names():
         app.logger.error(f"Error fetching custom names: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
-
-
-# Login route
-@app.route('/api/v1/login', methods=['POST'])
-def login():
-    # Get username and password from request
-    username = request.json.get('username')
-    password = request.json.get('password')
-
-    # Check if username and password are provided
-    if not username or not password:
-        return make_response(jsonify({"error": "Username and password are required"}), 400)
-
-    # Check if the username and password match with database records
-    user_data = mongo.db.Users.find_one({"username": username, "password": password})
-
-    if user_data:
-        print(user_data)
-        # User authenticated successfully, return user-specific data
-        return jsonify(user_data)
-    else:
-        return make_response(jsonify({"error": "Invalid username or password"}), 401)
-    
-    
-    
-# Account creation route
-@app.route('/api/v1/create_account', methods=['POST'])
-def create_account():
-    # Get username and password from request
-    username = request.json.get('username')
-    password = request.json.get('password')
-    classroom = request.json.get('classroom')
-
-    # Check if username and password are provided
-    if not username or not password:
-        return make_response(jsonify({"error": "Username and password are required"}), 400)
-
-    # Check if a user with the given username already exists
-    existing_user = mongo.db.Users.find_one({"username": username})
-
-    if existing_user:
-        # User with the given username already exists, return an error
-        return make_response(jsonify({"error": "Username already taken"}), 409)
-    else:
-        # Insert a new user into the database
-        mongo.db.Users.insert_one({
-            "username": username, 
-            "password": password, 
-            "classroom": classroom,
-            "coin": 0, 
-            "meat": 0, 
-            "plant": 0, 
-            "crystal": 0, 
-            "water": 0
-        })
-
-        return jsonify({"message": "Account created successfully"})   
-    
-    
-
-
-def add_item(username, item):
-    try:
-        # Add one item to the user's account in the database
-        result = mongo.db.Users.update_one({"username": username}, {"$inc": {item: 1}})
-
-        if result.modified_count == 0:
-            return jsonify({"error": "No user found with given username"}), 404
-
-        return jsonify({"message": f"1 {item} added successfully"}), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 
 
@@ -243,6 +173,109 @@ def update_resource():
     resp = jsonify({"message": "Resource updated  successfully"})
     resp.status_code = 200
     return resp
+
+@app.route("/api/v1/users/<rfidUID>/add_creature", methods=["POST"])
+def add_creature(rfidUID):
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+        
+        # For example, we expect JSON like:
+        # {
+        #   "creatureName": "Dragon",
+        #   "creatureValue": 7
+        # }
+        creature_name = data.get("creatureName")
+        creature_value = data.get("creatureValue")
+
+        if creature_name is None or creature_value is None:
+            return make_response(jsonify({"error": "Missing creatureName or creatureValue"}), 400)
+
+        # Push the creature to the "creatures" list in the user's document
+        result = mongo.db.Users.update_one(
+            {"rfidUID": rfidUID},
+            {"$push": {"creatures": {"name": creature_name, "value": creature_value}}}
+        )
+
+        if result.modified_count == 0:
+            return make_response(jsonify({"error": "No user found for given rfidUID"}), 404)
+
+        return jsonify({"message": "Creature added successfully"}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error adding creature: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+
+@app.route("/api/v1/users/<rfidUID>/add_artifact", methods=["POST"])
+def add_artifact(rfidUID):
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+        
+        # For example, we expect:
+        # {
+        #   "artifactName": "Ancient Amulet",
+        #   "artifactPower": 12
+        # }
+        artifact_name = data.get("artifactName")
+        artifact_power = data.get("artifactPower")
+
+        if artifact_name is None or artifact_power is None:
+            return make_response(jsonify({"error": "Missing artifactName or artifactPower"}), 400)
+
+        # Push the artifact to the "artifacts" list in the user's document
+        result = mongo.db.Users.update_one(
+            {"rfidUID": rfidUID},
+            {"$push": {"artifacts": {"name": artifact_name, "power": artifact_power}}}
+        )
+
+        if result.modified_count == 0:
+            return make_response(jsonify({"error": "No user found for given rfidUID"}), 404)
+
+        return jsonify({"message": "Artifact added successfully"}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error adding artifact: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+
+@app.route("/api/v1/users/<rfidUID>/add_challenge_code", methods=["POST"])
+def add_challenge_code(rfidUID):
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+        
+        # Expect JSON like:
+        # {
+        #   "challengeCode": 123,
+        #   "digit": 7
+        # }
+        challenge_code = data.get("challengeCode")
+        digit = data.get("digit")
+
+        if (challenge_code is None or digit is None):
+            return make_response(jsonify({"error": "Missing challengeCode or digit"}), 400)
+
+        # Push the new item into the 'challengeCodes' array
+        # Each entry could look like: {"code": 123, "digit": 7}
+        result = mongo.db.Users.update_one(
+            {"rfidUID": rfidUID},
+            {"$push": {"challengeCodes": {"code": challenge_code, "digit": digit}}}
+        )
+
+        if result.modified_count == 0:
+            return make_response(jsonify({"error": "No user found for given rfidUID"}), 404)
+
+        return jsonify({"message": "Challenge code added successfully"}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error adding challenge code: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
 
 @app.errorhandler(400)
 def handle_400_error(error):
