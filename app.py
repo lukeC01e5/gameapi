@@ -75,8 +75,9 @@ def create_user_from_rfid():
         if not data:
             return make_response(jsonify({"error": "No data provided"}), 400)
 
-        # Parse the fields from the updated payload in mainChange.cpp
+        # Parse the fields from the updated payload
         name = data.get("name")
+        password = data.get("password")  # NEW
         rfidUID = data.get("rfidUID")
         mainCreature = data.get("mainCreature")
         challengeCodes = data.get("challengeCodes")
@@ -84,13 +85,13 @@ def create_user_from_rfid():
         artifacts = data.get("artifacts")
 
         # Validate required fields
-        # Ensures all are present (and not None)
         if not all([
-            name, 
-            rfidUID, 
-            mainCreature, 
-            challengeCodes is not None, 
-            creatures is not None, 
+            name,
+            password,               # NEW
+            rfidUID,
+            mainCreature,
+            challengeCodes is not None,
+            creatures is not None,
             artifacts is not None
         ]):
             return make_response(jsonify({"error": "Missing required fields"}), 400)
@@ -98,6 +99,7 @@ def create_user_from_rfid():
         # Create the user document
         user = {
             "name": name,
+            "password": password,  # NEW
             "rfidUID": rfidUID,
             "mainCreature": mainCreature,
             "challengeCodes": challengeCodes,
@@ -109,7 +111,7 @@ def create_user_from_rfid():
         result = mongo.db.Users.insert_one(user)
 
         return jsonify({
-            "message": "User created successfully", 
+            "message": "User created successfully",
             "userId": str(result.inserted_id)
         }), 201
     except Exception as e:
