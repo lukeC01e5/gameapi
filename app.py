@@ -75,45 +75,48 @@ def create_user_from_rfid():
         if not data:
             return make_response(jsonify({"error": "No data provided"}), 400)
 
-        # Parse the fields from the updated payload
-        name = data.get("name")
-        password = data.get("password")  # NEW
+        # Adjust field names to match what you send from the ESP32
+        name = data.get("name")            # old "playerName"
+        password = data.get("password")    # old "playerPassword"
         rfidUID = data.get("rfidUID")
-        mainCreature = data.get("mainCreature")
-        challengeCodes = data.get("challengeCodes")
-        creatures = data.get("creatures")
-        artifacts = data.get("artifacts")
+        playerClass = data.get("playerClass")  # NEW
 
-        # Validate required fields
+        # We can make the other fields optional by using .get(..., defaultValue)
+        mainCreature = data.get("mainCreature", "")
+        challengeCodes = data.get("challengeCodes", [])
+        creatures = data.get("creatures", [])
+        artifacts = data.get("artifacts", [])
+
+        # Check only the required ones for now
         if not all([
             name,
-            password,               # NEW
+            password,
             rfidUID,
-            mainCreature,
-            challengeCodes is not None,
-            creatures is not None,
-            artifacts is not None
+            playerClass
         ]):
             return make_response(jsonify({"error": "Missing required fields"}), 400)
 
-        # Create the user document
+        # Construct the user document
+        # You can store "playerClass" under any name you like, e.g. "class" or "playerClass"
         user = {
             "name": name,
-            "password": password,  # NEW
+            "password": password,
             "rfidUID": rfidUID,
+            "playerClass": playerClass,
             "mainCreature": mainCreature,
             "challengeCodes": challengeCodes,
             "creatures": creatures,
             "artifacts": artifacts
         }
 
-        # Insert the user into the database
+        # Insert into "Users" collection
         result = mongo.db.Users.insert_one(user)
 
         return jsonify({
             "message": "User created successfully",
             "userId": str(result.inserted_id)
         }), 201
+
     except Exception as e:
         app.logger.error(f"Error creating user from RFID data: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
@@ -278,6 +281,27 @@ def add_challenge_code(rfidUID):
         app.logger.error(f"Error adding challenge code: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
+
+@app.route("/api/v1/users", methods=["GET"])
+def get_user_by_rfid():
+    try:
+        # Get the rfidUID from the query parameters
+        rfid_uid = request.args.get("rfidUID")
+        if not rfid_uid:
+            return make_response(jsonify({"error": "rfidUID is required"}), 400)
+
+        # Query the database for the user with the given rfidUID
+        user = mongo.db.Users.find_one({"rfidUID": rfid_uid}, {"_id": 0, "name": 1})
+
+        if not user:
+            return make_response(jsonify({"error": "No user found for the given rfidUID"}), 404)
+
+        # Return the user's name
+        return jsonify({"playerName": user["name"]}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error fetching user by RFID: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 @app.errorhandler(400)
 def handle_400_error(error):
