@@ -303,6 +303,42 @@ def get_user_by_rfid():
         app.logger.error(f"Error fetching user by RFID: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
+@app.route("/api/v1/update_creature_loot_and_coin", methods=["POST"])
+def update_creature_loot_and_coin():
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+
+        rfid_uid = data.get("rfidUID")
+        add_coins = data.get("addCoins", 0)
+        creatures = data.get("creatures", [])
+        loot = data.get("loot", [])
+
+        if not rfid_uid:
+            return make_response(jsonify({"error": "rfidUID is required"}), 400)
+
+        result = mongo.db.Users.update_one(
+            {"rfidUID": rfid_uid},
+            {
+                "$inc": {"coins": add_coins},
+                "$push": {
+                    "creatures": {"$each": creatures},
+                    "loot": {"$each": loot}
+                }
+            }
+        )
+
+        if result.modified_count == 0:
+            return make_response(jsonify({"error": "No user found for this rfidUID"}), 404)
+
+        return jsonify({"message": "Creature, loot, and coins updated successfully"}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error updating creature, loot, and coins: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+
 @app.errorhandler(400)
 def handle_400_error(error):
     return make_response(jsonify({"errorCode": error.code, 
