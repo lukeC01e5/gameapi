@@ -75,29 +75,28 @@ def create_user_from_rfid():
         if not data:
             return make_response(jsonify({"error": "No data provided"}), 400)
 
-        # Adjust field names to match what you send from the ESP32
-        name = data.get("name")            # old "playerName"
-        password = data.get("password")    # old "playerPassword"
+        name = data.get("name")
+        password = data.get("password")
         rfidUID = data.get("rfidUID")
-        playerClass = data.get("playerClass")  # NEW
-
-        # We can make the other fields optional by using .get(..., defaultValue)
+        playerClass = data.get("playerClass")
         mainCreature = data.get("mainCreature", "")
         challengeCodes = data.get("challengeCodes", [])
         creatures = data.get("creatures", [])
         artifacts = data.get("artifacts", [])
 
-        # Check only the required ones for now
-        if not all([
-            name,
-            password,
-            rfidUID,
-            playerClass
-        ]):
+        if not all([name, password, rfidUID, playerClass]):
             return make_response(jsonify({"error": "Missing required fields"}), 400)
 
-        # Construct the user document
-        # You can store "playerClass" under any name you like, e.g. "class" or "playerClass"
+        # Check if this RFID UID already exists
+        existing_user = mongo.db.Users.find_one({"rfidUID": rfidUID})
+        if existing_user:
+            # Return a warning, but still allow overwrite if client confirms
+            return jsonify({
+                "warning": True,
+                "message": "Warning: This RFID tag is already assigned to another user. Submitting will overwrite existing data!"
+            }), 200
+
+        # If not exists, create new user
         user = {
             "name": name,
             "password": password,
@@ -109,10 +108,10 @@ def create_user_from_rfid():
             "artifacts": artifacts
         }
 
-        # Insert into "Users" collection
         result = mongo.db.Users.insert_one(user)
 
         return jsonify({
+            "warning": False,
             "message": "User created successfully",
             "userId": str(result.inserted_id)
         }), 201
