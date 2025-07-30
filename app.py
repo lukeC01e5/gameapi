@@ -365,24 +365,6 @@ def login_user():
         return make_response(jsonify({"warning": True, "message": "Internal Server Error"}), 500)
 
 
-@app.route("/api/v1/users", methods=["GET"])
-def get_users():
-    class_name = request.args.get("class")
-    if class_name:
-        users = mongo.db.Users.find({"playerClass": class_name})
-        users_list = [u for u in users]
-        for u in users_list:
-            u.pop("_id", None)
-            u.pop("password", None)
-        return jsonify({"students": users_list}), 200
-    else:
-        users = mongo.db.Users.find()
-        users_list = [u for u in users]
-        for u in users_list:
-            u.pop("_id", None)
-            u.pop("password", None)
-        return jsonify(users_list), 200
-
 
 @app.errorhandler(400)
 def handle_400_error(error):
