@@ -337,6 +337,52 @@ def update_creature_loot_and_coin():
         app.logger.error(f"Error updating creature, loot, and coins: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
+@app.route("/api/v1/login", methods=["POST"])
+def login_user():
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"warning": True, "message": "No data provided"}), 400)
+
+        username = data.get("username")
+        password = data.get("password")
+        if not username or not password:
+            return make_response(jsonify({"warning": True, "message": "Username and password required"}), 400)
+
+        # Find user by name and password
+        user = mongo.db.Users.find_one({"name": username, "password": password})
+        if not user:
+            return make_response(jsonify({"warning": True, "message": "Invalid username or password"}), 401)
+
+        # Remove sensitive info before returning
+        user.pop("_id", None)
+        user.pop("password", None)
+
+        return jsonify({"warning": False, "user": user}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error logging in: {str(e)}")
+        return make_response(jsonify({"warning": True, "message": "Internal Server Error"}), 500)
+
+
+@app.route("/api/v1/users", methods=["GET"])
+def get_users():
+    class_name = request.args.get("class")
+    if class_name:
+        users = mongo.db.Users.find({"playerClass": class_name})
+        users_list = [u for u in users]
+        for u in users_list:
+            u.pop("_id", None)
+            u.pop("password", None)
+        return jsonify({"students": users_list}), 200
+    else:
+        users = mongo.db.Users.find()
+        users_list = [u for u in users]
+        for u in users_list:
+            u.pop("_id", None)
+            u.pop("password", None)
+        return jsonify(users_list), 200
+
 
 @app.errorhandler(400)
 def handle_400_error(error):
