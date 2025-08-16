@@ -83,6 +83,7 @@ def create_user_from_rfid():
         challengeCodes = data.get("challengeCodes", [])
         creatures = data.get("creatures", [])
         artifacts = data.get("artifacts", [])
+        loot = data.get("loot", [])  # Add this line for loot
 
         if not all([name, password, rfidUID, playerClass]):
             return make_response(jsonify({"error": "Missing required fields"}), 400)
@@ -105,7 +106,9 @@ def create_user_from_rfid():
             "mainCreature": mainCreature,
             "challengeCodes": challengeCodes,
             "creatures": creatures,
-            "artifacts": artifacts
+            "artifacts": artifacts,
+            "loot": loot,  # Add this line
+            "coins": 0     # Initialize coins to 0
         }
 
         result = mongo.db.Users.insert_one(user)
