@@ -551,15 +551,17 @@ def get_user_by_rfid():
         # Add debug logging
         app.logger.info(f"Looking up user with RFID UID: {rfid_uid}")
         
+        # Use MongoDB query (not SQLAlchemy)
         user = mongo.db.Users.find_one({"rfidUID": rfid_uid})
+        
         if user:
-            app.logger.info(f"User found: {user.name}")
+            app.logger.info(f"User found: {user['name']}")
             return jsonify({
-                "name": user.name,
-                "password": user.password,
-                "playerClass": user.playerClass,
-                "coins": user.coins,
-                "rfidUID": user.rfidUID
+                "name": user.get("name", "Unknown"),
+                "password": user.get("password", ""),
+                "playerClass": user.get("playerClass", ""),
+                "coins": user.get("coins", 0),
+                "rfidUID": user.get("rfidUID", "")
             })
         else:
             app.logger.info(f"No user found with RFID UID: {rfid_uid}")
@@ -740,44 +742,39 @@ def complete_loot_upload():
         creatures = data.get('creatures', [])
         loot = data.get('loot', [])
         
-        # Find user
-        user = User.query.filter_by(rfidUID=rfid_uid).first()
+        # Use MongoDB query (not SQLAlchemy)
+        user = mongo.db.Users.find_one({"rfidUID": rfid_uid})
         if not user:
             return make_response(jsonify({"error": "User not found"}), 404)
         
-        # Update coins
-        user.coins += add_coins
+        # Update using MongoDB syntax
+        result = mongo.db.Users.update_one(
+            {"rfidUID": rfid_uid},
+            {
+                "$inc": {"coins": add_coins},
+                "$push": {
+                    "creatures": {"$each": creatures},
+                    "loot": {"$each": loot}
+                }
+            }
+        )
         
-        # Add creatures
-        for creature_name in creatures:
-            if creature_name:  # Skip empty strings
-                existing = Creature.query.filter_by(userId=user.id, name=creature_name).first()
-                if not existing:
-                    new_creature = Creature(userId=user.id, name=creature_name)
-                    db.session.add(new_creature)
+        if result.modified_count == 0:
+            return make_response(jsonify({"error": "No user found for this rfidUID"}), 404)
         
-        # Add loot
-        for loot_name in loot:
-            if loot_name:  # Skip empty strings
-                existing = Loot.query.filter_by(userId=user.id, name=loot_name).first()
-                if not existing:
-                    new_loot = Loot(userId=user.id, name=loot_name)
-                    db.session.add(new_loot)
+        # Get updated user data
+        updated_user = mongo.db.Users.find_one({"rfidUID": rfid_uid})
         
-        # Commit all changes at once
-        db.session.commit()
-        
-        app.logger.info(f"Complete loot upload for user {user.name}: +{add_coins} coins, {len(creatures)} creatures, {len(loot)} loot")
+        app.logger.info(f"Complete loot upload for user {user['name']}: +{add_coins} coins, {len(creatures)} creatures, {len(loot)} loot")
         return make_response(jsonify({
             "message": "Upload successful",
             "coinsAdded": add_coins,
             "creaturesAdded": len(creatures),
             "lootAdded": len(loot),
-            "totalCoins": user.coins
+            "totalCoins": updated_user.get("coins", 0)
         }), 200)
         
     except Exception as e:
-        db.session.rollback()
         app.logger.error(f"Error in complete loot upload: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
@@ -785,6 +782,20 @@ def complete_loot_upload():
 @require_api_key
 def test_connection():
     return jsonify({"status": "success", "message": "API is working"})
+
+@app.route("/api/v1/debug/users", methods=["GET"])
+@require_api_key
+def debug_users():
+    try:
+        # Get all users to see what's in the database
+        users = list(mongo.db.Users.find({}, {"_id": 0, "name": 1, "rfidUID": 1}))
+        return jsonify({
+            "total_users": len(users),
+            "users": users
+        })
+    except Exception as e:
+        app.logger.error(f"Error in debug_users: {str(e)}")
+        return make_response(jsonify({"error": str(e)}), 500)
 
 
 
