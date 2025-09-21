@@ -551,7 +551,7 @@ def get_user_by_rfid():
         # Add debug logging
         app.logger.info(f"Looking up user with RFID UID: {rfid_uid}")
         
-        user = User.query.filter_by(rfidUID=rfid_uid).first()
+        user = mongo.db.Users.find_one({"rfidUID": rfid_uid})
         if user:
             app.logger.info(f"User found: {user.name}")
             return jsonify({
