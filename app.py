@@ -11,6 +11,7 @@ from flask_pymongo import PyMongo
 from flask.json import JSONEncoder  # Corrected import
 from flask_cors import CORS
 from flask import send_from_directory
+from functools import wraps
 
 
 class CustomJSONEncoder(JSONEncoder):
@@ -402,8 +403,376 @@ def handle_exception(e):
                                   "errorName": "Internal Server Error"}), 500)
 
 
-if __name__ == "__main__":
-    app.run(debug=True,)
+@app.route("/api/v1/users/<rfidUID>/set_main_creature", methods=["POST"])
+def set_main_creature(rfidUID):
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+        
+        creature_name = data.get("creatureName")
+        if not creature_name:
+            return make_response(jsonify({"error": "creatureName is required"}), 400)
+
+        # Update the main creature and ensure the creature has stats
+        result = mongo.db.Users.update_one(
+            {"rfidUID": rfidUID, "creatures.name": creature_name},
+            {
+                "$set": {
+                    "mainCreature": creature_name,
+                    "creatures.$.stats": {
+                        "power": data.get("power", 3),
+                        "defence": data.get("defence", 3),
+                        "speed": data.get("speed", 3)
+                    }
+                }
+            }
+        )
+
+        if result.modified_count == 0:
+            return make_response(jsonify({"error": "Creature not found or user not found"}), 404)
+
+        return jsonify({"message": "Main creature updated successfully"}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error setting main creature: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+@app.route("/api/v1/users/<rfidUID>/update_creature_stats", methods=["POST"])
+def update_creature_stats(rfidUID):
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+        
+        creature_name = data.get("creatureName")
+        stats = data.get("stats", {})
+        
+        if not creature_name:
+            return make_response(jsonify({"error": "creatureName is required"}), 400)
+
+        # Update the creature's stats
+        result = mongo.db.Users.update_one(
+            {"rfidUID": rfidUID, "creatures.name": creature_name},
+            {"$set": {"creatures.$.stats": stats}}
+        )
+
+        if result.modified_count == 0:
+            return make_response(jsonify({"error": "Creature not found or user not found"}), 404)
+
+        return jsonify({"message": "Creature stats updated successfully"}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error updating creature stats: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+from flask import Flask, request, jsonify, make_response
+import os
+from functools import wraps
+
+app = Flask(__name__)
+
+# API Key from environment variable (set in Heroku config)
+API_KEY = os.environ.get('API_KEY', 'your-default-api-key')
+
+def require_api_key(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        api_key = request.headers.get('X-API-Key')
+        if not api_key or api_key != API_KEY:
+            return make_response(jsonify({"error": "Invalid or missing API key"}), 401)
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route("/api/v1/create_user_from_rfid", methods=["POST"])
+@require_api_key  # Add this decorator
+def create_user_from_rfid():
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+
+        name = data.get("name")
+        password = data.get("password")
+        rfidUID = data.get("rfidUID")
+        playerClass = data.get("playerClass")
+        mainCreature = data.get("mainCreature", "")
+        challengeCodes = data.get("challengeCodes", [])
+        creatures = data.get("creatures", [])
+        artifacts = data.get("artifacts", [])
+        loot = data.get("loot", [])  # Add this line for loot
+
+        if not all([name, password, rfidUID, playerClass]):
+            return make_response(jsonify({"error": "Missing required fields"}), 400)
+
+        # Check if this RFID UID already exists
+        existing_user = mongo.db.Users.find_one({"rfidUID": rfidUID})
+        if existing_user:
+            # Return a warning, but still allow overwrite if client confirms
+            return jsonify({
+                "warning": True,
+                "message": "Warning: This RFID tag is already assigned to another user. Submitting will overwrite existing data!"
+            }), 200
+
+        # If not exists, create new user
+        user = {
+            "name": name,
+            "password": password,
+            "rfidUID": rfidUID,
+            "playerClass": playerClass,
+            "mainCreature": mainCreature,
+            "challengeCodes": challengeCodes,
+            "creatures": creatures,
+            "artifacts": artifacts,
+            "loot": loot,  # Add this line
+            "coins": 0     # Initialize coins to 0
+        }
+
+        result = mongo.db.Users.insert_one(user)
+
+        return jsonify({
+            "warning": False,
+            "message": "User created successfully",
+            "userId": str(result.inserted_id)
+        }), 201
+
+    except Exception as e:
+        app.logger.error(f"Error creating user from RFID data: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+@app.route("/api/v1/users", methods=["GET"])
+@require_api_key  # Add this decorator
+def get_user_by_rfid():
+    try:
+        # Get the rfidUID from the query parameters
+        rfid_uid = request.args.get("rfidUID")
+        if not rfid_uid:
+            return make_response(jsonify({"error": "rfidUID is required"}), 400)
+
+        # Query the database for the user with the given rfidUID
+        user = mongo.db.Users.find_one({"rfidUID": rfid_uid}, {"_id": 0, "name": 1})
+
+        if not user:
+            return make_response(jsonify({"error": "No user found for the given rfidUID"}), 404)
+
+        # Return the user's name
+        return jsonify({"playerName": user["name"]}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error fetching user by RFID: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+@app.route("/api/v1/update_creature_loot_and_coin", methods=["POST"])
+@require_api_key  # Add this decorator
+def update_creature_loot_and_coin():
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+
+        rfid_uid = data.get("rfidUID")
+        add_coins = data.get("addCoins", 0)
+        creatures = data.get("creatures", [])
+        loot = data.get("loot", [])
+
+        if not rfid_uid:
+            return make_response(jsonify({"error": "rfidUID is required"}), 400)
+
+        result = mongo.db.Users.update_one(
+            {"rfidUID": rfid_uid},
+            {
+                "$inc": {"coins": add_coins},
+                "$push": {
+                    "creatures": {"$each": creatures},
+                    "loot": {"$each": loot}
+                }
+            }
+        )
+
+        if result.modified_count == 0:
+            return make_response(jsonify({"error": "No user found for this rfidUID"}), 404)
+
+        return jsonify({"message": "Creature, loot, and coins updated successfully"}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error updating creature, loot, and coins: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+@app.route("/api/v1/login", methods=["POST"])
+def login_user():
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"warning": True, "message": "No data provided"}), 400)
+
+        username = data.get("username")
+        password = data.get("password")
+        if not username or not password:
+            return make_response(jsonify({"warning": True, "message": "Username and password required"}), 400)
+
+        # Find user by name and password
+        user = mongo.db.Users.find_one({"name": username, "password": password})
+        if not user:
+            return make_response(jsonify({"warning": True, "message": "Invalid username or password"}), 401)
+
+        # Remove sensitive info before returning
+        user.pop("_id", None)
+        user.pop("password", None)
+
+        return jsonify({"warning": False, "user": user}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error logging in: {str(e)}")
+        return make_response(jsonify({"warning": True, "message": "Internal Server Error"}), 500)
+
+
+
+@app.errorhandler(400)
+def handle_400_error(error):
+    return make_response(jsonify({"errorCode": error.code, 
+                                  "errorDescription": "Bad request!",
+                                  "errorDetailedDescription": error.description,
+                                  "errorName": error.name}), 400)
+
+@app.errorhandler(404)
+def handle_404_error(error):
+    return make_response(jsonify({"errorCode": error.code, 
+                                  "errorDescription": "Resource not found!",
+                                  "errorDetailedDescription": error.description,
+                                  "errorName": error.name}), 404)
+
+@app.errorhandler(500)
+def handle_500_error(error):
+    return make_response(jsonify({"errorCode": error.code, 
+                                  "errorDescription": "Internal Server Error",
+                                  "errorDetailedDescription": error.description,
+                                  "errorName": error.name}), 500) 
+    
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Log the error
+    app.logger.error(str(e))
+
+    # Return a generic server error message
+    return make_response(jsonify({"errorCode": 500, 
+                                  "errorDescription": "Internal Server Error",
+                                  "errorDetailedDescription": str(e),
+                                  "errorName": "Internal Server Error"}), 500)
+
+
+@app.route("/api/v1/users/<rfidUID>/set_main_creature", methods=["POST"])
+def set_main_creature(rfidUID):
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+        
+        creature_name = data.get("creatureName")
+        if not creature_name:
+            return make_response(jsonify({"error": "creatureName is required"}), 400)
+
+        # Update the main creature and ensure the creature has stats
+        result = mongo.db.Users.update_one(
+            {"rfidUID": rfidUID, "creatures.name": creature_name},
+            {
+                "$set": {
+                    "mainCreature": creature_name,
+                    "creatures.$.stats": {
+                        "power": data.get("power", 3),
+                        "defence": data.get("defence", 3),
+                        "speed": data.get("speed", 3)
+                    }
+                }
+            }
+        )
+
+        if result.modified_count == 0:
+            return make_response(jsonify({"error": "Creature not found or user not found"}), 404)
+
+        return jsonify({"message": "Main creature updated successfully"}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error setting main creature: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+@app.route("/api/v1/users/<rfidUID>/update_creature_stats", methods=["POST"])
+def update_creature_stats(rfidUID):
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+        
+        creature_name = data.get("creatureName")
+        stats = data.get("stats", {})
+        
+        if not creature_name:
+            return make_response(jsonify({"error": "creatureName is required"}), 400)
+
+        # Update the creature's stats
+        result = mongo.db.Users.update_one(
+            {"rfidUID": rfidUID, "creatures.name": creature_name},
+            {"$set": {"creatures.$.stats": stats}}
+        )
+
+        if result.modified_count == 0:
+            return make_response(jsonify({"error": "Creature not found or user not found"}), 404)
+
+        return jsonify({"message": "Creature stats updated successfully"}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error updating creature stats: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+@app.route("/api/v1/complete_loot_upload", methods=["POST"])
+@require_api_key
+def complete_loot_upload():
+    try:
+        data = request.json
+        rfid_uid = data.get('rfidUID')
+        add_coins = data.get('addCoins', 0)
+        creatures = data.get('creatures', [])
+        loot = data.get('loot', [])
+        
+        # Find user
+        user = User.query.filter_by(rfidUID=rfid_uid).first()
+        if not user:
+            return make_response(jsonify({"error": "User not found"}), 404)
+        
+        # Update coins
+        user.coins += add_coins
+        
+        # Add creatures
+        for creature_name in creatures:
+            if creature_name:  # Skip empty strings
+                existing = Creature.query.filter_by(userId=user.id, name=creature_name).first()
+                if not existing:
+                    new_creature = Creature(userId=user.id, name=creature_name)
+                    db.session.add(new_creature)
+        
+        # Add loot
+        for loot_name in loot:
+            if loot_name:  # Skip empty strings
+                existing = Loot.query.filter_by(userId=user.id, name=loot_name).first()
+                if not existing:
+                    new_loot = Loot(userId=user.id, name=loot_name)
+                    db.session.add(new_loot)
+        
+        # Commit all changes at once
+        db.session.commit()
+        
+        app.logger.info(f"Complete loot upload for user {user.name}: +{add_coins} coins, {len(creatures)} creatures, {len(loot)} loot")
+        return make_response(jsonify({
+            "message": "Upload successful",
+            "coinsAdded": add_coins,
+            "creaturesAdded": len(creatures),
+            "lootAdded": len(loot),
+            "totalCoins": user.coins
+        }), 200)
+        
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error in complete loot upload: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 
 
