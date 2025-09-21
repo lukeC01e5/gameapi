@@ -544,22 +544,29 @@ def create_user_from_rfid():
 @require_api_key  # Add this decorator
 def get_user_by_rfid():
     try:
-        # Get the rfidUID from the query parameters
-        rfid_uid = request.args.get("rfidUID")
+        rfid_uid = request.args.get('rfidUID')
         if not rfid_uid:
-            return make_response(jsonify({"error": "rfidUID is required"}), 400)
-
-        # Query the database for the user with the given rfidUID
-        user = mongo.db.Users.find_one({"rfidUID": rfid_uid}, {"_id": 0, "name": 1})
-
-        if not user:
-            return make_response(jsonify({"error": "No user found for the given rfidUID"}), 404)
-
-        # Return the user's name
-        return jsonify({"playerName": user["name"]}), 200
-
+            return make_response(jsonify({"error": "Missing rfidUID parameter"}), 400)
+        
+        # Add debug logging
+        app.logger.info(f"Looking up user with RFID UID: {rfid_uid}")
+        
+        user = User.query.filter_by(rfidUID=rfid_uid).first()
+        if user:
+            app.logger.info(f"User found: {user.name}")
+            return jsonify({
+                "name": user.name,
+                "password": user.password,
+                "playerClass": user.playerClass,
+                "coins": user.coins,
+                "rfidUID": user.rfidUID
+            })
+        else:
+            app.logger.info(f"No user found with RFID UID: {rfid_uid}")
+            return make_response(jsonify({"error": "User not found"}), 404)
+            
     except Exception as e:
-        app.logger.error(f"Error fetching user by RFID: {str(e)}")
+        app.logger.error(f"Error in get_user_by_rfid: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 @app.route("/api/v1/update_creature_loot_and_coin", methods=["POST"])
@@ -773,6 +780,11 @@ def complete_loot_upload():
         db.session.rollback()
         app.logger.error(f"Error in complete loot upload: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+@app.route("/api/v1/test", methods=["GET"])
+@require_api_key
+def test_connection():
+    return jsonify({"status": "success", "message": "API is working"})
 
 
 
