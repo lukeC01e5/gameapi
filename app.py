@@ -29,7 +29,9 @@ app.json_encoder = CustomJSONEncoder
 CORS(app, origins=[
     'https://lootbox-portal-a7b5db61cb5f.herokuapp.com',  # Your production frontend
     'http://localhost:3000',  # Your local development
-    'https://localhost:3000'   # Local HTTPS if needed
+    'https://localhost:3000',   # Local HTTPS if needed
+    'http://127.0.0.1:5000',
+    'https://gameapi-2e9bb6e38339.herokuapp.com'  # Added your API domain
 ])
 
 
@@ -255,6 +257,7 @@ def add_creature(rfidUID):
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 @app.route("/api/v1/users/<rfidUID>/add_artifact", methods=["POST"])
+@require_api_key_strict
 def add_artifact(rfidUID):
     try:
         data = request.json
@@ -289,6 +292,7 @@ def add_artifact(rfidUID):
 
 
 @app.route("/api/v1/users/<rfidUID>/add_challenge_code", methods=["POST"])
+@require_api_key_strict
 def add_challenge_code(rfidUID):
     try:
         data = request.json
