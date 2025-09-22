@@ -8,7 +8,7 @@ from pymongo import MongoClient
 from bson.json_util import dumps
 from bson.objectid import ObjectId
 from flask_pymongo import PyMongo
-from flask.json import JSONEncoder  # Corrected import
+from flask.json import JSONEncoder
 from flask_cors import CORS
 from flask import send_from_directory
 from functools import wraps
@@ -25,6 +25,7 @@ load_dotenv()
 app = Flask(__name__)
 app.json_encoder = CustomJSONEncoder
 
+# Updated CORS to allow both your website and ESP32
 CORS(app, origins=[
     'https://lootbox-portal-a7b5db61cb5f.herokuapp.com',  # Your production frontend
     'http://localhost:3000',  # Your local development
@@ -36,15 +37,42 @@ app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zx
 
 mongo = PyMongo(app)
 
+# Modified API key decorator to be optional
+def require_api_key_optional(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        api_key = request.headers.get('X-API-Key')
+        expected_key = os.getenv('API_KEY')
+        
+        # If API key is provided, validate it
+        if api_key:
+            if api_key != expected_key:
+                return make_response(jsonify({"error": "Invalid API key"}), 401)
+        
+        # If no API key provided, continue (for website requests)
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Strict API key requirement (for sensitive operations)
+def require_api_key_strict(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        api_key = request.headers.get('X-API-Key')
+        expected_key = os.getenv('API_KEY')
+        
+        if not api_key or api_key != expected_key:
+            return make_response(jsonify({"error": "API key required"}), 401)
+        
+        return f(*args, **kwargs)
+    return decorated_function
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
-   # return send_from_directory('static/unity_build', 'index.html')
-   
-
+# ESP32 endpoints - require API key
 @app.route("/api/v1/add_5_coin", methods=["POST"])
+@require_api_key_strict
 def add_5_coin():
     try:
         # Expecting a JSON body with "rfidUID"
@@ -72,9 +100,8 @@ def add_5_coin():
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 
-   
-   
 @app.route("/api/v1/create_user_from_rfid", methods=["POST"])
+@require_api_key_strict
 def create_user_from_rfid():
     try:
         data = request.json
@@ -129,65 +156,72 @@ def create_user_from_rfid():
         app.logger.error(f"Error creating user from RFID data: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
+# Website endpoints - optional API key
+@app.route("/api/v1/login", methods=["POST"])
+@require_api_key_optional
+def login_user():
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"warning": True, "message": "No data provided"}), 400)
 
+        username = data.get("username")
+        password = data.get("password")
+        if not username or not password:
+            return make_response(jsonify({"warning": True, "message": "Username and password required"}), 400)
+
+        user = mongo.db.Users.find_one({"name": username, "password": password})
+        if not user:
+            return make_response(jsonify({"warning": True, "message": "Invalid username or password"}), 401)
+
+        user.pop("_id", None)
+        user.pop("password", None)
+
+        return jsonify({"warning": False, "user": user}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error logging in: {str(e)}")
+        return make_response(jsonify({"warning": True, "message": "Internal Server Error"}), 500)
+
+# Public endpoints - no API key required
 @app.route("/api/v1/get_custom_names", methods=["GET"])
 def get_custom_names():
     try:
         # Retrieve only the 'customName' field from all documents
-        users = mongo.db.Users.find({}, {"_id": 0, "customName": 1})
+        users = mongo.db.Users.find({}, {"_id": 0, "name": 1})  # Changed from customName to name
         
         # Build a list of custom names
-        custom_names = [user["customName"] for user in users if "customName" in user]
+        custom_names = [user["name"] for user in users if "name" in user]
         
         return jsonify(custom_names), 200
     except Exception as e:
         app.logger.error(f"Error fetching custom names: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
-
-
-
 @app.route('/api/v1/users', methods=['GET'])
+@require_api_key_optional
 def get_users():
     try:
-        users = mongo.db.Users.find()
-        users_list = list(users)  # Convert cursor to list
-        return jsonify(users_list), 200
+        # Check if this is an ESP32 request for a specific user
+        rfid_uid = request.args.get("rfidUID")
+        if rfid_uid:
+            # ESP32 request - get specific user by RFID
+            user = mongo.db.Users.find_one({"rfidUID": rfid_uid}, {"_id": 0, "name": 1, "password": 1, "playerClass": 1, "coins": 1})
+            if not user:
+                return make_response(jsonify({"error": "No user found for the given rfidUID"}), 404)
+            return jsonify(user), 200
+        else:
+            # Website request - get all users (without sensitive data)
+            users = mongo.db.Users.find({}, {"_id": 0, "name": 1, "playerClass": 1, "coins": 1, "creatures": 1, "artifacts": 1, "loot": 1})
+            users_list = list(users)
+            return jsonify(users_list), 200
     except Exception as e:
+        app.logger.error(f"Error fetching users: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-
-
-@app.route('/api/v1/resources', methods=['GET'])
-def get_resources():
-    resources = mongo.db.Data.find()
-    resp = dumps(resources)
-    return resp
-
-@app.route('/api/v1/resources', methods=['POST'])
-def add_resource():
-    _json = request.json
-    mongo.db.Data.insert_one(_json)
-    resp = jsonify({"message": "Resource added  successfully"})
-    resp.status_code = 200
-    return resp
-
-@app.route('/api/v1/resources', methods=['DELETE'])
-def delete_resource():
-    mongo.db.Data.delete_one({'_id': ObjectId(id)})
-    resp = jsonify({"message": "Resource deleted  successfully"})
-    resp.status_code = 200
-    return resp 
-
-@app.route('/api/v1/resources', methods=['PUT'])
-def update_resource():
-    _json = request.json
-    mongo.db.Data.update_one({'_id': ObjectId(id)}, {"$set": _json})
-    resp = jsonify({"message": "Resource updated  successfully"})
-    resp.status_code = 200
-    return resp
-
+# ESP32 specific endpoints
 @app.route("/api/v1/users/<rfidUID>/add_creature", methods=["POST"])
+@require_api_key_strict
 def add_creature(rfidUID):
     try:
         data = request.json
@@ -219,7 +253,6 @@ def add_creature(rfidUID):
     except Exception as e:
         app.logger.error(f"Error adding creature: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
-
 
 @app.route("/api/v1/users/<rfidUID>/add_artifact", methods=["POST"])
 def add_artifact(rfidUID):
@@ -472,7 +505,7 @@ def update_creature_stats(rfidUID):
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 @app.route("/api/v1/complete_loot_upload", methods=["POST"])
-@require_api_key
+@require_api_key_strict
 def complete_loot_upload():
     try:
         data = request.json
@@ -481,12 +514,10 @@ def complete_loot_upload():
         creatures = data.get('creatures', [])
         loot = data.get('loot', [])
         
-        # Use MongoDB query (not SQLAlchemy)
         user = mongo.db.Users.find_one({"rfidUID": rfid_uid})
         if not user:
             return make_response(jsonify({"error": "User not found"}), 404)
         
-        # Update using MongoDB syntax
         result = mongo.db.Users.update_one(
             {"rfidUID": rfid_uid},
             {
@@ -501,7 +532,6 @@ def complete_loot_upload():
         if result.modified_count == 0:
             return make_response(jsonify({"error": "No user found for this rfidUID"}), 404)
         
-        # Get updated user data
         updated_user = mongo.db.Users.find_one({"rfidUID": rfid_uid})
         
         app.logger.info(f"Complete loot upload for user {user['name']}: +{add_coins} coins, {len(creatures)} creatures, {len(loot)} loot")
@@ -523,7 +553,7 @@ def test_connection():
     return jsonify({"status": "success", "message": "API is working"})
 
 @app.route("/api/v1/debug/users", methods=["GET"])
-@require_api_key
+@require_api_key_strict
 def debug_users():
     try:
         # Get all users to see what's in the database
@@ -535,6 +565,39 @@ def debug_users():
     except Exception as e:
         app.logger.error(f"Error in debug_users: {str(e)}")
         return make_response(jsonify({"error": str(e)}), 500)
+
+# Error handlers
+@app.errorhandler(400)
+def handle_400_error(error):
+    return make_response(jsonify({"errorCode": error.code, 
+                                  "errorDescription": "Bad request!",
+                                  "errorDetailedDescription": error.description,
+                                  "errorName": error.name}), 400)
+
+@app.errorhandler(404)
+def handle_404_error(error):
+    return make_response(jsonify({"errorCode": error.code, 
+                                  "errorDescription": "Resource not found!",
+                                  "errorDetailedDescription": error.description,
+                                  "errorName": error.name}), 404)
+
+@app.errorhandler(500)
+def handle_500_error(error):
+    return make_response(jsonify({"errorCode": error.code, 
+                                  "errorDescription": "Internal Server Error",
+                                  "errorDetailedDescription": error.description,
+                                  "errorName": error.name}), 500) 
+    
+@app.errorhandler(Exception)
+def handle_exception(e):
+    app.logger.error(str(e))
+    return make_response(jsonify({"errorCode": 500, 
+                                  "errorDescription": "Internal Server Error",
+                                  "errorDetailedDescription": str(e),
+                                  "errorName": "Internal Server Error"}), 500)
+
+if __name__ == "__main__":
+    app.run(debug=True)
 
 
 
