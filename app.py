@@ -200,6 +200,7 @@ def get_custom_names():
         app.logger.error(f"Error fetching custom names: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
+# FIXED: Single users endpoint that handles both ESP32 and website requests
 @app.route('/api/v1/users', methods=['GET'])
 @require_api_key_optional
 def get_users():
@@ -207,11 +208,11 @@ def get_users():
         # Check if this is an ESP32 request for a specific user
         rfid_uid = request.args.get("rfidUID")
         if rfid_uid:
-            # ESP32 request - get specific user by RFID
-            user = mongo.db.Users.find_one({"rfidUID": rfid_uid}, {"_id": 0, "name": 1, "password": 1, "playerClass": 1, "coins": 1})
+            # ESP32 request - get specific user by RFID with only name
+            user = mongo.db.Users.find_one({"rfidUID": rfid_uid}, {"_id": 0, "name": 1})
             if not user:
                 return make_response(jsonify({"error": "No user found for the given rfidUID"}), 404)
-            return jsonify(user), 200
+            return jsonify({"playerName": user["name"]}), 200
         else:
             # Website request - get all users (without sensitive data)
             users = mongo.db.Users.find({}, {"_id": 0, "name": 1, "playerClass": 1, "coins": 1, "creatures": 1, "artifacts": 1, "loot": 1})
@@ -327,28 +328,8 @@ def add_challenge_code(rfidUID):
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 
-@app.route("/api/v1/users", methods=["GET"])
-def get_user_by_rfid():
-    try:
-        # Get the rfidUID from the query parameters
-        rfid_uid = request.args.get("rfidUID")
-        if not rfid_uid:
-            return make_response(jsonify({"error": "rfidUID is required"}), 400)
-
-        # Query the database for the user with the given rfidUID
-        user = mongo.db.Users.find_one({"rfidUID": rfid_uid}, {"_id": 0, "name": 1})
-
-        if not user:
-            return make_response(jsonify({"error": "No user found for the given rfidUID"}), 404)
-
-        # Return the user's name
-        return jsonify({"playerName": user["name"]}), 200
-
-    except Exception as e:
-        app.logger.error(f"Error fetching user by RFID: {str(e)}")
-        return make_response(jsonify({"error": "Internal Server Error"}), 500)
-
 @app.route("/api/v1/update_creature_loot_and_coin", methods=["POST"])
+@require_api_key_strict
 def update_creature_loot_and_coin():
     try:
         data = request.json
@@ -383,69 +364,8 @@ def update_creature_loot_and_coin():
         app.logger.error(f"Error updating creature, loot, and coins: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
-@app.route("/api/v1/login", methods=["POST"])
-def login_user():
-    try:
-        data = request.json
-        if not data:
-            return make_response(jsonify({"warning": True, "message": "No data provided"}), 400)
-
-        username = data.get("username")
-        password = data.get("password")
-        if not username or not password:
-            return make_response(jsonify({"warning": True, "message": "Username and password required"}), 400)
-
-        # Find user by name and password
-        user = mongo.db.Users.find_one({"name": username, "password": password})
-        if not user:
-            return make_response(jsonify({"warning": True, "message": "Invalid username or password"}), 401)
-
-        # Remove sensitive info before returning
-        user.pop("_id", None)
-        user.pop("password", None)
-
-        return jsonify({"warning": False, "user": user}), 200
-
-    except Exception as e:
-        app.logger.error(f"Error logging in: {str(e)}")
-        return make_response(jsonify({"warning": True, "message": "Internal Server Error"}), 500)
-
-
-
-@app.errorhandler(400)
-def handle_400_error(error):
-    return make_response(jsonify({"errorCode": error.code, 
-                                  "errorDescription": "Bad request!",
-                                  "errorDetailedDescription": error.description,
-                                  "errorName": error.name}), 400)
-
-@app.errorhandler(404)
-def handle_404_error(error):
-    return make_response(jsonify({"errorCode": error.code, 
-                                  "errorDescription": "Resource not found!",
-                                  "errorDetailedDescription": error.description,
-                                  "errorName": error.name}), 404)
-
-@app.errorhandler(500)
-def handle_500_error(error):
-    return make_response(jsonify({"errorCode": error.code, 
-                                  "errorDescription": "Internal Server Error",
-                                  "errorDetailedDescription": error.description,
-                                  "errorName": error.name}), 500) 
-    
-@app.errorhandler(Exception)
-def handle_exception(e):
-    # Log the error
-    app.logger.error(str(e))
-
-    # Return a generic server error message
-    return make_response(jsonify({"errorCode": 500, 
-                                  "errorDescription": "Internal Server Error",
-                                  "errorDetailedDescription": str(e),
-                                  "errorName": "Internal Server Error"}), 500)
-
-
 @app.route("/api/v1/users/<rfidUID>/set_main_creature", methods=["POST"])
+@require_api_key_optional
 def set_main_creature(rfidUID):
     try:
         data = request.json
@@ -481,6 +401,7 @@ def set_main_creature(rfidUID):
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 @app.route("/api/v1/users/<rfidUID>/update_creature_stats", methods=["POST"])
+@require_api_key_optional
 def update_creature_stats(rfidUID):
     try:
         data = request.json
@@ -550,11 +471,6 @@ def complete_loot_upload():
     except Exception as e:
         app.logger.error(f"Error in complete loot upload: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
-
-@app.route("/api/v1/test", methods=["GET"])
-@require_api_key
-def test_connection():
-    return jsonify({"status": "success", "message": "API is working"})
 
 @app.route("/api/v1/debug/users", methods=["GET"])
 @require_api_key_strict
