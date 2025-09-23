@@ -516,6 +516,44 @@ def handle_exception(e):
                                   "errorDetailedDescription": str(e),
                                   "errorName": "Internal Server Error"}), 500)
 
+@app.route("/api/v1/users/<rfidUID>/add_crafted_artifact", methods=["POST"])
+def add_crafted_artifact(rfidUID):
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+        
+        artifact_name = data.get("name")
+        artifact_power = data.get("power")
+        artifact_emoji = data.get("emoji")
+        artifact_type = data.get("type", "crafted")
+
+        if not artifact_name or artifact_power is None:
+            return make_response(jsonify({"error": "Missing artifact name or power"}), 400)
+
+        # Create the artifact object
+        crafted_artifact = {
+            "name": artifact_name,
+            "power": artifact_power,
+            "emoji": artifact_emoji,
+            "type": artifact_type
+        }
+
+        # Push the artifact to the "artifacts" list in the user's document
+        result = mongo.db.Users.update_one(
+            {"rfidUID": rfidUID},
+            {"$push": {"artifacts": crafted_artifact}}
+        )
+
+        if result.modified_count == 0:
+            return make_response(jsonify({"error": "No user found for given rfidUID"}), 404)
+
+        return jsonify({"message": "Crafted artifact added successfully"}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error adding crafted artifact: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
 if __name__ == "__main__":
     app.run(debug=True)
 
