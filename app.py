@@ -376,23 +376,39 @@ def set_main_creature(rfidUID):
         if not creature_name:
             return make_response(jsonify({"error": "creatureName is required"}), 400)
 
-        # Update the main creature and ensure the creature has stats
+        # First, check if user exists
+        user = mongo.db.Users.find_one({"rfidUID": rfidUID})
+        if not user:
+            return make_response(jsonify({"error": "No user found for given rfidUID"}), 404)
+
+        # Update just the main creature (don't require creature to exist in collection)
         result = mongo.db.Users.update_one(
-            {"rfidUID": rfidUID, "creatures.name": creature_name},
-            {
-                "$set": {
-                    "mainCreature": creature_name,
-                    "creatures.$.stats": {
-                        "power": data.get("power", 3),
-                        "defence": data.get("defence", 3),
-                        "speed": data.get("speed", 3)
-                    }
-                }
-            }
+            {"rfidUID": rfidUID},
+            {"$set": {"mainCreature": creature_name}}
         )
 
+        # If the creature exists in the user's collection, update its stats
+        creature_exists = mongo.db.Users.find_one(
+            {"rfidUID": rfidUID, "creatures.name": creature_name}
+        )
+        
+        if creature_exists:
+            # Update existing creature stats
+            mongo.db.Users.update_one(
+                {"rfidUID": rfidUID, "creatures.name": creature_name},
+                {
+                    "$set": {
+                        "creatures.$.stats": {
+                            "power": data.get("power", 3),
+                            "defence": data.get("defence", 3),
+                            "speed": data.get("speed", 3)
+                        }
+                    }
+                }
+            )
+
         if result.modified_count == 0:
-            return make_response(jsonify({"error": "Creature not found or user not found"}), 404)
+            return make_response(jsonify({"error": "Failed to update main creature"}), 500)
 
         return jsonify({"message": "Main creature updated successfully"}), 200
 
