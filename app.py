@@ -517,6 +517,7 @@ def handle_exception(e):
                                   "errorName": "Internal Server Error"}), 500)
 
 @app.route("/api/v1/users/<rfidUID>/add_crafted_artifact", methods=["POST"])
+@require_api_key_optional  # <-- Add this line
 def add_crafted_artifact(rfidUID):
     try:
         data = request.json
