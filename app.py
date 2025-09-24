@@ -868,5 +868,21 @@ def set_main_creature_stacked(rfidUID):
         app.logger.error(f"Error setting main creature with stacking: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
+@app.route("/api/v1/test_stacked", methods=["POST"])
+@require_api_key_strict
+def test_stacked():
+    try:
+        data = request.json
+        print(f"RECEIVED DATA: {data}")  # This will show in Heroku logs
+        
+        return jsonify({
+            "message": "Test successful", 
+            "received": data
+        }), 200
+        
+    except Exception as e:
+        print(f"ERROR: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 
 
