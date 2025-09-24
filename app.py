@@ -686,14 +686,26 @@ def add_loot_stacked(rfidUID):
 def complete_loot_upload_stacked():
     try:
         data = request.json
+        app.logger.info(f"[complete_loot_upload_stacked] Received data: {data}")
+        
         rfid_uid = data.get('rfidUID')
         add_coins = data.get('addCoins', 0)
-        creatures = data.get('creatures', [])  # Format: [{"name": "Baby Shark", "value": 1, "count": 2}]
-        loot = data.get('loot', [])  # Format: [{"name": "Lava", "count": 3}]
+        creatures = data.get('creatures', [])
+        loot = data.get('loot', [])
+        
+        app.logger.info(f"[complete_loot_upload_stacked] Processing - RFID: {rfid_uid}, Coins: {add_coins}")
+        app.logger.info(f"[complete_loot_upload_stacked] Creatures: {creatures}")
+        app.logger.info(f"[complete_loot_upload_stacked] Loot: {loot}")
         
         user = mongo.db.Users.find_one({"rfidUID": rfid_uid})
         if not user:
+            app.logger.error(f"[complete_loot_upload_stacked] User not found for RFID: {rfid_uid}")
             return make_response(jsonify({"error": "User not found"}), 404)
+        
+        app.logger.info(f"[complete_loot_upload_stacked] Found user: {user['name']}")
+        
+        creatures_processed = 0
+        loot_processed = 0
         
         # Process creatures with stacking
         for creature_data in creatures:
@@ -701,20 +713,29 @@ def complete_loot_upload_stacked():
             creature_value = creature_data.get("value", 1)
             count = creature_data.get("count", 1)
             
+            app.logger.info(f"[complete_loot_upload_stacked] Processing creature: {creature_name}, value: {creature_value}, count: {count}")
+            
+            if not creature_name:
+                app.logger.warning(f"[complete_loot_upload_stacked] Skipping creature with no name: {creature_data}")
+                continue
+                
             # Check if creature already exists
             existing_creature = mongo.db.Users.find_one(
                 {"rfidUID": rfid_uid, "creatures.name": creature_name}
             )
             
             if existing_creature:
+                app.logger.info(f"[complete_loot_upload_stacked] Incrementing existing creature {creature_name} by {count}")
                 # Increment count
-                mongo.db.Users.update_one(
+                result = mongo.db.Users.update_one(
                     {"rfidUID": rfid_uid, "creatures.name": creature_name},
                     {"$inc": {"creatures.$.count": count}}
                 )
+                app.logger.info(f"[complete_loot_upload_stacked] Creature increment result: {result.modified_count}")
             else:
+                app.logger.info(f"[complete_loot_upload_stacked] Adding new creature {creature_name} with count {count}")
                 # Add new creature
-                mongo.db.Users.update_one(
+                result = mongo.db.Users.update_one(
                     {"rfidUID": rfid_uid},
                     {"$push": {"creatures": {
                         "name": creature_name,
@@ -722,11 +743,20 @@ def complete_loot_upload_stacked():
                         "count": count
                     }}}
                 )
+                app.logger.info(f"[complete_loot_upload_stacked] New creature result: {result.modified_count}")
+            
+            creatures_processed += 1
         
         # Process loot with stacking
         for loot_data in loot:
             loot_name = loot_data.get("name")
             count = loot_data.get("count", 1)
+            
+            app.logger.info(f"[complete_loot_upload_stacked] Processing loot: {loot_name}, count: {count}")
+            
+            if not loot_name:
+                app.logger.warning(f"[complete_loot_upload_stacked] Skipping loot with no name: {loot_data}")
+                continue
             
             # Check if loot already exists
             existing_loot = mongo.db.Users.find_one(
@@ -734,14 +764,17 @@ def complete_loot_upload_stacked():
             )
             
             if existing_loot:
+                app.logger.info(f"[complete_loot_upload_stacked] Incrementing existing loot {loot_name} by {count}")
                 # Increment count
-                mongo.db.Users.update_one(
+                result = mongo.db.Users.update_one(
                     {"rfidUID": rfid_uid, "loot.name": loot_name},
                     {"$inc": {"loot.$.count": count}}
                 )
+                app.logger.info(f"[complete_loot_upload_stacked] Loot increment result: {result.modified_count}")
             else:
+                app.logger.info(f"[complete_loot_upload_stacked] Adding new loot {loot_name} with count {count}")
                 # Add new loot
-                mongo.db.Users.update_one(
+                result = mongo.db.Users.update_one(
                     {"rfidUID": rfid_uid},
                     {"$push": {"loot": {
                         "name": loot_name,
@@ -749,26 +782,35 @@ def complete_loot_upload_stacked():
                         "type": "loot"
                     }}}
                 )
+                app.logger.info(f"[complete_loot_upload_stacked] New loot result: {result.modified_count}")
+            
+            loot_processed += 1
         
         # Add coins
-        mongo.db.Users.update_one(
-            {"rfidUID": rfid_uid},
-            {"$inc": {"coins": add_coins}}
-        )
+        if add_coins > 0:
+            app.logger.info(f"[complete_loot_upload_stacked] Adding {add_coins} coins")
+            coin_result = mongo.db.Users.update_one(
+                {"rfidUID": rfid_uid},
+                {"$inc": {"coins": add_coins}}
+            )
+            app.logger.info(f"[complete_loot_upload_stacked] Coin update result: {coin_result.modified_count}")
         
         updated_user = mongo.db.Users.find_one({"rfidUID": rfid_uid})
         
-        app.logger.info(f"Stacked loot upload for user {user['name']}: +{add_coins} coins")
+        app.logger.info(f"[complete_loot_upload_stacked] FINAL RESULT - User: {user['name']}, Creatures processed: {creatures_processed}, Loot processed: {loot_processed}, Total coins: {updated_user.get('coins', 0)}")
+        
         return make_response(jsonify({
             "message": "Stacked upload successful",
             "coinsAdded": add_coins,
-            "creaturesProcessed": len(creatures),
-            "lootProcessed": len(loot),
+            "creaturesProcessed": creatures_processed,
+            "lootProcessed": loot_processed,
             "totalCoins": updated_user.get("coins", 0)
         }), 200)
         
     except Exception as e:
-        app.logger.error(f"Error in stacked loot upload: {str(e)}")
+        app.logger.error(f"[complete_loot_upload_stacked] ERROR: {str(e)}")
+        import traceback
+        app.logger.error(f"[complete_loot_upload_stacked] TRACEBACK: {traceback.format_exc()}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 # Add endpoint to decrement creature count when setting as main
