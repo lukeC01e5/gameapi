@@ -571,8 +571,260 @@ def add_crafted_artifact(rfidUID):
         app.logger.error(f"Error adding crafted artifact: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
-if __name__ == "__main__":
-    app.run(debug=True)
+# Add this new endpoint for adding creatures with stacking
+@app.route("/api/v1/users/<rfidUID>/add_creature_stacked", methods=["POST"])
+@require_api_key_strict
+def add_creature_stacked(rfidUID):
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+        
+        creature_name = data.get("creatureName")
+        creature_value = data.get("creatureValue", 1)
+        count_to_add = data.get("count", 1)
+
+        if not creature_name:
+            return make_response(jsonify({"error": "Missing creatureName"}), 400)
+
+        # Check if creature already exists in user's collection
+        user = mongo.db.Users.find_one({"rfidUID": rfidUID})
+        if not user:
+            return make_response(jsonify({"error": "No user found for given rfidUID"}), 404)
+
+        # Find existing creature
+        existing_creature = None
+        for i, creature in enumerate(user.get("creatures", [])):
+            if creature.get("name") == creature_name:
+                existing_creature = {"creature": creature, "index": i}
+                break
+
+        if existing_creature:
+            # Increment existing creature count
+            result = mongo.db.Users.update_one(
+                {"rfidUID": rfidUID, "creatures.name": creature_name},
+                {"$inc": {"creatures.$.count": count_to_add}}
+            )
+        else:
+            # Add new creature with count
+            new_creature = {
+                "name": creature_name,
+                "value": creature_value,
+                "count": count_to_add
+            }
+            result = mongo.db.Users.update_one(
+                {"rfidUID": rfidUID},
+                {"$push": {"creatures": new_creature}}
+            )
+
+        if result.modified_count == 0:
+            return make_response(jsonify({"error": "Failed to update creature"}), 500)
+
+        return jsonify({"message": f"Added {count_to_add} {creature_name}(s) successfully"}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error adding stacked creature: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+# Add this new endpoint for adding loot/resources with stacking
+@app.route("/api/v1/users/<rfidUID>/add_loot_stacked", methods=["POST"])
+@require_api_key_strict
+def add_loot_stacked(rfidUID):
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+        
+        loot_name = data.get("lootName")
+        count_to_add = data.get("count", 1)
+
+        if not loot_name:
+            return make_response(jsonify({"error": "Missing lootName"}), 400)
+
+        # Check if loot already exists in user's collection
+        user = mongo.db.Users.find_one({"rfidUID": rfidUID})
+        if not user:
+            return make_response(jsonify({"error": "No user found for given rfidUID"}), 404)
+
+        # Find existing loot
+        existing_loot = None
+        for i, loot in enumerate(user.get("loot", [])):
+            if loot.get("name") == loot_name:
+                existing_loot = {"loot": loot, "index": i}
+                break
+
+        if existing_loot:
+            # Increment existing loot count
+            result = mongo.db.Users.update_one(
+                {"rfidUID": rfidUID, "loot.name": loot_name},
+                {"$inc": {"loot.$.count": count_to_add}}
+            )
+        else:
+            # Add new loot with count
+            new_loot = {
+                "name": loot_name,
+                "count": count_to_add,
+                "type": "loot"
+            }
+            result = mongo.db.Users.update_one(
+                {"rfidUID": rfidUID},
+                {"$push": {"loot": new_loot}}
+            )
+
+        if result.modified_count == 0:
+            return make_response(jsonify({"error": "Failed to update loot"}), 500)
+
+        return jsonify({"message": f"Added {count_to_add} {loot_name}(s) successfully"}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error adding stacked loot: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+# Update the complete loot upload endpoint to handle stacking
+@app.route("/api/v1/complete_loot_upload_stacked", methods=["POST"])
+@require_api_key_strict
+def complete_loot_upload_stacked():
+    try:
+        data = request.json
+        rfid_uid = data.get('rfidUID')
+        add_coins = data.get('addCoins', 0)
+        creatures = data.get('creatures', [])  # Format: [{"name": "Baby Shark", "value": 1, "count": 2}]
+        loot = data.get('loot', [])  # Format: [{"name": "Lava", "count": 3}]
+        
+        user = mongo.db.Users.find_one({"rfidUID": rfid_uid})
+        if not user:
+            return make_response(jsonify({"error": "User not found"}), 404)
+        
+        # Process creatures with stacking
+        for creature_data in creatures:
+            creature_name = creature_data.get("name")
+            creature_value = creature_data.get("value", 1)
+            count = creature_data.get("count", 1)
+            
+            # Check if creature already exists
+            existing_creature = mongo.db.Users.find_one(
+                {"rfidUID": rfid_uid, "creatures.name": creature_name}
+            )
+            
+            if existing_creature:
+                # Increment count
+                mongo.db.Users.update_one(
+                    {"rfidUID": rfid_uid, "creatures.name": creature_name},
+                    {"$inc": {"creatures.$.count": count}}
+                )
+            else:
+                # Add new creature
+                mongo.db.Users.update_one(
+                    {"rfidUID": rfid_uid},
+                    {"$push": {"creatures": {
+                        "name": creature_name,
+                        "value": creature_value,
+                        "count": count
+                    }}}
+                )
+        
+        # Process loot with stacking
+        for loot_data in loot:
+            loot_name = loot_data.get("name")
+            count = loot_data.get("count", 1)
+            
+            # Check if loot already exists
+            existing_loot = mongo.db.Users.find_one(
+                {"rfidUID": rfid_uid, "loot.name": loot_name}
+            )
+            
+            if existing_loot:
+                # Increment count
+                mongo.db.Users.update_one(
+                    {"rfidUID": rfid_uid, "loot.name": loot_name},
+                    {"$inc": {"loot.$.count": count}}
+                )
+            else:
+                # Add new loot
+                mongo.db.Users.update_one(
+                    {"rfidUID": rfid_uid},
+                    {"$push": {"loot": {
+                        "name": loot_name,
+                        "count": count,
+                        "type": "loot"
+                    }}}
+                )
+        
+        # Add coins
+        mongo.db.Users.update_one(
+            {"rfidUID": rfid_uid},
+            {"$inc": {"coins": add_coins}}
+        )
+        
+        updated_user = mongo.db.Users.find_one({"rfidUID": rfid_uid})
+        
+        app.logger.info(f"Stacked loot upload for user {user['name']}: +{add_coins} coins")
+        return make_response(jsonify({
+            "message": "Stacked upload successful",
+            "coinsAdded": add_coins,
+            "creaturesProcessed": len(creatures),
+            "lootProcessed": len(loot),
+            "totalCoins": updated_user.get("coins", 0)
+        }), 200)
+        
+    except Exception as e:
+        app.logger.error(f"Error in stacked loot upload: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+# Add endpoint to decrement creature count when setting as main
+@app.route("/api/v1/users/<rfidUID>/set_main_creature_stacked", methods=["POST"])
+@require_api_key_optional
+def set_main_creature_stacked(rfidUID):
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+        
+        creature_name = data.get("creatureName")
+        if not creature_name:
+            return make_response(jsonify({"error": "creatureName is required"}), 400)
+
+        # First, check if user exists
+        user = mongo.db.Users.find_one({"rfidUID": rfidUID})
+        if not user:
+            return make_response(jsonify({"error": "No user found for given rfidUID"}), 404)
+
+        # Set the main creature
+        result = mongo.db.Users.update_one(
+            {"rfidUID": rfidUID},
+            {"$set": {"mainCreature": creature_name}}
+        )
+
+        # Find the creature and decrement its count
+        creature_exists = mongo.db.Users.find_one(
+            {"rfidUID": rfidUID, "creatures.name": creature_name}
+        )
+        
+        if creature_exists:
+            # Find the specific creature in the array
+            for creature in creature_exists.get("creatures", []):
+                if creature.get("name") == creature_name:
+                    current_count = creature.get("count", 1)
+                    
+                    if current_count > 1:
+                        # Decrement count
+                        mongo.db.Users.update_one(
+                            {"rfidUID": rfidUID, "creatures.name": creature_name},
+                            {"$inc": {"creatures.$.count": -1}}
+                        )
+                    else:
+                        # Remove creature entirely if count would be 0
+                        mongo.db.Users.update_one(
+                            {"rfidUID": rfidUID},
+                            {"$pull": {"creatures": {"name": creature_name}}}
+                        )
+                    break
+
+        return jsonify({"message": "Main creature set and count decremented"}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error setting main creature with stacking: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 
 
