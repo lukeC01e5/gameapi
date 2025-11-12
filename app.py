@@ -2,6 +2,7 @@
 #trying to change to the new version with two rfid blocks
 
 import os
+import datetime  # ← ADD THIS
 from flask import Flask, Response, render_template, request, jsonify, make_response
 from dotenv import load_dotenv
 from pymongo import MongoClient
@@ -39,7 +40,11 @@ app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zx
 
 mongo = PyMongo(app)
 
-# Modified API key decorator to be optional
+
+# ==========================================
+# TEACHER ENDPOINTS (NEW)
+# ==========================================
+
 def require_api_key_optional(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -883,6 +888,395 @@ def test_stacked():
     except Exception as e:
         print(f"ERROR: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+def register_teacher():
+    """Register a new teacher account"""
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+
+        name = data.get("name")
+        email = data.get("email")
+        password = data.get("password")
+        school = data.get("school")
+
+        if not all([name, email, password, school]):
+            return make_response(jsonify({"error": "Missing required fields"}), 400)
+
+        # Check if teacher email already exists
+        existing_teacher = mongo.db.Teachers.find_one({"email": email})
+        if existing_teacher:
+            return make_response(jsonify({"error": "Email already registered"}), 409)
+
+        # Create teacher document
+        teacher = {
+            "name": name,
+            "email": email.lower(),  # Store emails in lowercase for consistency
+            "password": password,  # In production, you'd hash this!
+            "school": school,
+            "classes": [],  # Will be populated with class IDs they manage
+            "createdAt": datetime.datetime.utcnow()
+        }
+
+        result = mongo.db.Teachers.insert_one(teacher)
+
+        app.logger.info(f"New teacher registered: {name} ({email})")
+
+        return jsonify({
+            "message": "Teacher account created successfully",
+            "teacherId": str(result.inserted_id)
+        }), 201
+
+    except Exception as e:
+        app.logger.error(f"Error registering teacher: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+
+@app.route("/api/v1/teachers/login", methods=["POST"])
+@require_api_key_optional
+def login_teacher():
+    """Authenticate teacher login"""
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+
+        email = data.get("email")
+        password = data.get("password")
+
+        if not email or not password:
+            return make_response(jsonify({"error": "Email and password required"}), 400)
+
+        # Find teacher by email
+        teacher = mongo.db.Teachers.find_one({"email": email.lower()})
+        if not teacher:
+            return make_response(jsonify({"error": "Invalid email or password"}), 401)
+
+        # Verify password (in production, use hashed comparison)
+        if teacher.get("password") != password:
+            return make_response(jsonify({"error": "Invalid email or password"}), 401)
+
+        # Generate simple token (in production, use JWT)
+        teacher_id = str(teacher["_id"])
+        token = f"teacher_{teacher_id}_{teacher['email']}"  # Simple token for now
+
+        app.logger.info(f"Teacher logged in: {teacher['name']} ({email})")
+
+        return jsonify({
+            "message": "Login successful",
+            "teacherId": teacher_id,
+            "token": token,
+            "name": teacher["name"],
+            "school": teacher["school"]
+        }), 200
+
+    except Exception as e:
+        app.logger.error(f"Error logging in teacher: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+
+@app.route("/api/v1/teachers/<teacher_id>/classes", methods=["GET"])
+@require_api_key_optional
+def get_teacher_classes(teacher_id):
+    """Get all classes for a teacher"""
+    try:
+        # Verify teacher exists
+        teacher = mongo.db.Teachers.find_one({"_id": ObjectId(teacher_id)})
+        if not teacher:
+            return make_response(jsonify({"error": "Teacher not found"}), 404)
+
+        # Get unique classes from their school
+        # This finds all unique playerClass values from students in the same school
+        pipeline = [
+            {"$match": {"playerClass": {"$regex": f"^{teacher['school']}"}}},
+            {"$group": {"_id": "$playerClass"}},
+            {"$sort": {"_id": 1}}
+        ]
+        
+        classes = list(mongo.db.Users.aggregate(pipeline))
+        
+        # Format classes for dropdown
+        formatted_classes = []
+        for cls in classes:
+            class_name = cls["_id"]
+            # Create ID by replacing spaces/slashes with hyphens
+            class_id = class_name.replace(" / ", "-").replace(" ", "-")
+            formatted_classes.append({
+                "id": class_name,  # Use full name as ID for easier matching
+                "name": class_name
+            })
+
+        # If no classes found, return default ones for that school
+        if not formatted_classes:
+            school_name = teacher['school'].split(' / ')[0]  # Get school name part
+            formatted_classes = [
+                {"id": f"{school_name} / Kowhai", "name": f"{school_name} / Kowhai"},
+                {"id": f"{school_name} / Kauri", "name": f"{school_name} / Kauri"}
+            ]
+
+        return jsonify(formatted_classes), 200
+
+    except Exception as e:
+        app.logger.error(f"Error getting teacher classes: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+
+@app.route("/api/v1/teachers/<teacher_id>/classes/<path:class_id>/students", methods=["GET"])
+@require_api_key_optional
+def get_class_students(teacher_id, class_id):
+    """Get all students in a specific class"""
+    try:
+        # Verify teacher exists
+        teacher = mongo.db.Teachers.find_one({"_id": ObjectId(teacher_id)})
+        if not teacher:
+            return make_response(jsonify({"error": "Teacher not found"}), 404)
+
+        # Decode class_id (it comes URL-encoded)
+        from urllib.parse import unquote
+        class_name = unquote(class_id)
+
+        # Get all students in this class
+        students = mongo.db.Users.find(
+            {"playerClass": class_name},
+            {"_id": 0, "name": 1, "coins": 1, "mainCreature": 1, "playerClass": 1, "creatures": 1, "artifacts": 1}
+        )
+
+        students_list = []
+        for student in students:
+            students_list.append({
+                "name": student.get("name", "Unknown"),
+                "coins": student.get("coins", 0),
+                "mainPet": student.get("mainCreature", "None"),
+                "schoolClass": student.get("playerClass", class_name),
+                "totalCreatures": len(student.get("creatures", [])),
+                "totalArtifacts": len(student.get("artifacts", []))
+            })
+
+        # Sort by coins (leaderboard style)
+        students_list.sort(key=lambda x: x["coins"], reverse=True)
+
+        app.logger.info(f"Teacher {teacher['name']} viewing class {class_name}: {len(students_list)} students")
+
+        return jsonify(students_list), 200
+
+    except Exception as e:
+        app.logger.error(f"Error getting class students: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+
+# Optional: Get teacher profile
+@app.route("/api/v1/teachers/<teacher_id>", methods=["GET"])
+@require_api_key_optional
+def get_teacher_profile(teacher_id):
+    """Get teacher profile information"""
+    try:
+        teacher = mongo.db.Teachers.find_one(
+            {"_id": ObjectId(teacher_id)},
+            {"_id": 0, "password": 0}  # Exclude sensitive data
+        )
+        
+        if not teacher:
+            return make_response(jsonify({"error": "Teacher not found"}), 404)
+
+        return jsonify(teacher), 200
+
+    except Exception as e:
+        app.logger.error(f"Error getting teacher profile: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+
+@app.route("/api/v1/users/<rfidUID>/add_loot_stacked_v2", methods=["POST"])
+@require_api_key_strict
+def add_loot_stacked_v2(rfidUID):
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+        
+        loot_name = data.get("lootName")
+        count_to_add = data.get("count", 1)
+
+        if not loot_name:
+            return make_response(jsonify({"error": "Missing lootName"}), 400)
+
+        # Check if loot already exists in user's collection
+        user = mongo.db.Users.find_one({"rfidUID": rfidUID})
+        if not user:
+            return make_response(jsonify({"error": "No user found for given rfidUID"}), 404)
+
+        # Find existing loot
+        existing_loot = None
+        for i, loot in enumerate(user.get("loot", [])):
+            if loot.get("name") == loot_name:
+                existing_loot = {"loot": loot, "index": i}
+                break
+
+        if existing_loot:
+            # Increment existing loot count
+            result = mongo.db.Users.update_one(
+                {"rfidUID": rfidUID, "loot.name": loot_name},
+                {"$inc": {"loot.$.count": count_to_add}}
+            )
+        else:
+            # Add new loot with count
+            new_loot = {
+                "name": loot_name,
+                "count": count_to_add,
+                "type": "loot"
+            }
+            result = mongo.db.Users.update_one(
+                {"rfidUID": rfidUID},
+                {"$push": {"loot": new_loot}}
+            )
+
+        if result.modified_count == 0:
+            return make_response(jsonify({"error": "Failed to update loot"}), 500)
+
+        return jsonify({"message": f"Added {count_to_add} {loot_name}(s) successfully"}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error adding stacked loot: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+# Update the complete loot upload endpoint to handle stacking
+@app.route("/api/v1/complete_loot_upload_stacked_v2", methods=["POST"])
+@require_api_key_strict
+def complete_loot_upload_stacked_v2():
+    try:
+        data = request.json
+        app.logger.info(f"[complete_loot_upload_stacked_v2] Received data: {data}")
+        
+        rfid_uid = data.get('rfidUID')
+        add_coins = data.get('addCoins', 0)
+        creatures = data.get('creatures', [])
+        loot = data.get('loot', [])
+        
+        app.logger.info(f"[complete_loot_upload_stacked_v2] Processing - RFID: {rfid_uid}, Coins: {add_coins}")
+        app.logger.info(f"[complete_loot_upload_stacked_v2] Creatures: {creatures}")
+        app.logger.info(f"[complete_loot_upload_stacked_v2] Loot: {loot}")
+        
+        user = mongo.db.Users.find_one({"rfidUID": rfid_uid})
+        if not user:
+            app.logger.error(f"[complete_loot_upload_stacked_v2] User not found for RFID: {rfid_uid}")
+            return make_response(jsonify({"error": "User not found"}), 404)
+        
+        app.logger.info(f"[complete_loot_upload_stacked_v2] Found user: {user['name']}")
+        
+        creatures_processed = 0
+        loot_processed = 0
+        
+        # Process creatures with stacking
+        for creature_data in creatures:
+            creature_name = creature_data.get("name")
+            creature_value = creature_data.get("value", 1)
+            count = creature_data.get("count", 1)
+            
+            app.logger.info(f"[complete_loot_upload_stacked_v2] Processing creature: {creature_name}, value: {creature_value}, count: {count}")
+            
+            if not creature_name:
+                app.logger.warning(f"[complete_loot_upload_stacked_v2] Skipping creature with no name: {creature_data}")
+                continue
+                
+            # Check if creature already exists
+            existing_creature = mongo.db.Users.find_one(
+                {"rfidUID": rfid_uid, "creatures.name": creature_name}
+            )
+            
+            if existing_creature:
+                app.logger.info(f"[complete_loot_upload_stacked_v2] Incrementing existing creature {creature_name} by {count}")
+                # Increment count
+                result = mongo.db.Users.update_one(
+                    {"rfidUID": rfid_uid, "creatures.name": creature_name},
+                    {"$inc": {"creatures.$.count": count}}
+                )
+                app.logger.info(f"[complete_loot_upload_stacked_v2] Creature increment result: {result.modified_count}")
+            else:
+                app.logger.info(f"[complete_loot_upload_stacked_v2] Adding new creature {creature_name} with count {count}")
+                # Add new creature
+                result = mongo.db.Users.update_one(
+                    {"rfidUID": rfid_uid},
+                    {"$push": {"creatures": {
+                        "name": creature_name,
+                        "value": creature_value,
+                        "count": count
+                    }}}
+                )
+                app.logger.info(f"[complete_loot_upload_stacked_v2] New creature result: {result.modified_count}")
+            
+            creatures_processed += 1
+        
+        # Process loot with stacking
+        for loot_data in loot:
+            loot_name = loot_data.get("name")
+            count = loot_data.get("count", 1)
+            
+            app.logger.info(f"[complete_loot_upload_stacked_v2] Processing loot: {loot_name}, count: {count}")
+            
+            if not loot_name:
+                app.logger.warning(f"[complete_loot_upload_stacked_v2] Skipping loot with no name: {loot_data}")
+                continue
+            
+            # Check if loot already exists
+            existing_loot = mongo.db.Users.find_one(
+                {"rfidUID": rfid_uid, "loot.name": loot_name}
+            )
+            
+            if existing_loot:
+                app.logger.info(f"[complete_loot_upload_stacked_v2] Incrementing existing loot {loot_name} by {count}")
+                # Increment count
+                result = mongo.db.Users.update_one(
+                    {"rfidUID": rfid_uid, "loot.name": loot_name},
+                    {"$inc": {"loot.$.count": count}}
+                )
+                app.logger.info(f"[complete_loot_upload_stacked_v2] Loot increment result: {result.modified_count}")
+            else:
+                app.logger.info(f"[complete_loot_upload_stacked_v2] Adding new loot {loot_name} with count {count}")
+                # Add new loot
+                result = mongo.db.Users.update_one(
+                    {"rfidUID": rfid_uid},
+                    {"$push": {"loot": {
+                        "name": loot_name,
+                        "count": count,
+                        "type": "loot"
+                    }}}
+                )
+                app.logger.info(f"[complete_loot_upload_stacked_v2] New loot result: {result.modified_count}")
+            
+            loot_processed += 1
+        
+        # Add coins
+        if add_coins > 0:
+            app.logger.info(f"[complete_loot_upload_stacked_v2] Adding {add_coins} coins")
+            coin_result = mongo.db.Users.update_one(
+                {"rfidUID": rfid_uid},
+                {"$inc": {"coins": add_coins}}
+            )
+            app.logger.info(f"[complete_loot_upload_stacked_v2] Coin update result: {coin_result.modified_count}")
+        
+        updated_user = mongo.db.Users.find_one({"rfidUID": rfid_uid})
+        
+        app.logger.info(f"[complete_loot_upload_stacked_v2] FINAL RESULT - User: {user['name']}, Creatures processed: {creatures_processed}, Loot processed: {loot_processed}, Total coins: {updated_user.get('coins', 0)}")
+        
+        return make_response(jsonify({
+            "message": "Stacked upload successful",
+            "coinsAdded": add_coins,
+            "creaturesProcessed": creatures_processed,
+            "lootProcessed": loot_processed,
+            "totalCoins": updated_user.get("coins", 0)
+        }), 200)
+        
+    except Exception as e:
+        app.logger.error(f"[complete_loot_upload_stacked_v2] ERROR: {str(e)}")
+        import traceback
+        app.logger.error(f"[complete_loot_upload_stacked_v2] TRACEBACK: {traceback.format_exc()}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=True, host="0.0.0.0", port=port)
+
+
 
 
 
