@@ -889,6 +889,8 @@ def test_stacked():
         print(f"ERROR: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/v1/teachers/register", methods=["POST"])  # ✅ ADD THIS LINE
+@require_api_key_optional
 def register_teacher():
     """Register a new teacher account"""
     try:
