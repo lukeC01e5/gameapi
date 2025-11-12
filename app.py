@@ -1,6 +1,3 @@
-#latest version trying to add coin to user value
-#trying to change to the new version with two rfid blocks
-
 from flask import Flask, Response, render_template, request, jsonify, make_response
 from dotenv import load_dotenv
 from pymongo import MongoClient
@@ -11,9 +8,9 @@ from flask.json import JSONEncoder
 from flask_cors import CORS
 from flask import send_from_directory
 from functools import wraps
-import os  # ✅ ADD THIS
-import datetime  # ✅ ADD THIS
-import traceback  # ✅ ADD THIS (for better error logging)
+import os
+import datetime
+import traceback
 
 
 class CustomJSONEncoder(JSONEncoder):
