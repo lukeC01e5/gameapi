@@ -1,8 +1,6 @@
 #latest version trying to add coin to user value
 #trying to change to the new version with two rfid blocks
 
-import os
-import datetime  # ← ADD THIS
 from flask import Flask, Response, render_template, request, jsonify, make_response
 from dotenv import load_dotenv
 from pymongo import MongoClient
@@ -13,6 +11,9 @@ from flask.json import JSONEncoder
 from flask_cors import CORS
 from flask import send_from_directory
 from functools import wraps
+import os  # ✅ ADD THIS
+import datetime  # ✅ ADD THIS
+import traceback  # ✅ ADD THIS (for better error logging)
 
 
 class CustomJSONEncoder(JSONEncoder):
@@ -49,7 +50,7 @@ def require_api_key_optional(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         api_key = request.headers.get('X-API-Key')
-        expected_key = os.getenv('API_KEY')
+        expected_key = os.getenv('API_KEY')  # ❌ os not imported!
         
         # If API key is provided, validate it
         if api_key:
