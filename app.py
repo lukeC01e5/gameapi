@@ -25,13 +25,18 @@ app = Flask(__name__)
 app.json_encoder = CustomJSONEncoder
 
 # Updated CORS to allow both your website and ESP32
-CORS(app, origins=[
-    'https://lootbox-portal-a7b5db61cb5f.herokuapp.com',  # Your production frontend
-    'http://localhost:3000',  # Your local development
-    'https://localhost:3000',   # Local HTTPS if needed
-    'http://127.0.0.1:5000',
-    'https://gameapi-2e9bb6e38339.herokuapp.com'  # Added your API domain
-])
+CORS(app, 
+     origins=[
+         'https://lootbox-portal-a7b5db61cb5f.herokuapp.com',
+         'http://localhost:3000',
+         'https://localhost:3000',
+         'http://127.0.0.1:5000',
+         'https://gameapi-2e9bb6e38339.herokuapp.com'
+     ],
+     supports_credentials=True,
+     allow_headers=['Content-Type', 'Authorization', 'X-API-Key', 'X-Teacher-Token'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+)
 
 
 app.config["MONGO_URI"] = "mongodb+srv://colesluke:WZAQsanRtoyhuH6C@qrcluster.zxgcrnk.mongodb.net/playerData?retryWrites=true&w=majority&appName=qrCluster"
@@ -46,8 +51,12 @@ mongo = PyMongo(app)
 def require_api_key_optional(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # ✅ Allow OPTIONS requests (CORS preflight)
+        if request.method == 'OPTIONS':
+            return make_response('', 204)
+            
         api_key = request.headers.get('X-API-Key')
-        expected_key = os.getenv('API_KEY')  # ❌ os not imported!
+        expected_key = os.getenv('API_KEY')
         
         # If API key is provided, validate it
         if api_key:
@@ -62,6 +71,10 @@ def require_api_key_optional(f):
 def require_api_key_strict(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # ✅ Allow OPTIONS requests (CORS preflight)
+        if request.method == 'OPTIONS':
+            return make_response('', 204)
+            
         api_key = request.headers.get('X-API-Key')
         expected_key = os.getenv('API_KEY')
         
@@ -1275,9 +1288,14 @@ def require_teacher_token(f):
     """Validate simple teacher token returned at login: 'teacher_<id>_<email>'"""
     @wraps(f)
     def decorated(*args, **kwargs):
+        # ✅ Allow OPTIONS requests (CORS preflight)
+        if request.method == 'OPTIONS':
+            return make_response('', 204)
+            
         auth = request.headers.get('Authorization') or request.headers.get('X-Teacher-Token')
         if not auth:
             return make_response(jsonify({"error": "Authorization header required"}), 401)
+        
         # Accept "Bearer <token>" or raw token
         token = auth.split(' ').pop()
         teacher_id = kwargs.get('teacher_id') or kwargs.get('teacherId') or None
@@ -1285,7 +1303,11 @@ def require_teacher_token(f):
             return make_response(jsonify({"error": "Teacher id required in path"}), 400)
 
         # Find teacher and validate token matches simple format
-        teacher = mongo.db.Teachers.find_one({"_id": ObjectId(teacher_id)})
+        try:
+            teacher = mongo.db.Teachers.find_one({"_id": ObjectId(teacher_id)})
+        except:
+            return make_response(jsonify({"error": "Invalid teacher ID"}), 400)
+            
         if not teacher:
             return make_response(jsonify({"error": "Teacher not found"}), 404)
 
