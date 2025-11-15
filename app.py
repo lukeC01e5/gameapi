@@ -812,8 +812,6 @@ def complete_loot_upload_stacked():
         
     except Exception as e:
         app.logger.error(f"[complete_loot_upload_stacked] ERROR: {str(e)}")
-        import traceback
-        app.logger.error(f"[complete_loot_upload_stacked] TRACEBACK: {traceback.format_exc()}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 # Add endpoint to decrement creature count when setting as main
@@ -1036,10 +1034,10 @@ def get_class_students(teacher_id, class_id):
         from urllib.parse import unquote
         class_name = unquote(class_id)
 
-        # Get all students in this class
+        # ✅ FIX: Include rfidUID in the response
         students = mongo.db.Users.find(
             {"playerClass": class_name},
-            {"_id": 0, "name": 1, "coins": 1, "mainCreature": 1, "playerClass": 1, "creatures": 1, "artifacts": 1}
+            {"_id": 0, "name": 1, "coins": 1, "mainCreature": 1, "playerClass": 1, "creatures": 1, "artifacts": 1, "rfidUID": 1}  # ✅ Added rfidUID
         )
 
         students_list = []
@@ -1050,7 +1048,8 @@ def get_class_students(teacher_id, class_id):
                 "mainPet": student.get("mainCreature", "None"),
                 "schoolClass": student.get("playerClass", class_name),
                 "totalCreatures": len(student.get("creatures", [])),
-                "totalArtifacts": len(student.get("artifacts", []))
+                "totalArtifacts": len(student.get("artifacts", [])),
+                "rfidUID": student.get("rfidUID", "")  # ✅ Added this line
             })
 
         # Sort by coins (leaderboard style)
@@ -1270,6 +1269,65 @@ def complete_loot_upload_stacked_v2():
         app.logger.error(f"[complete_loot_upload_stacked_v2] ERROR: {str(e)}")
         import traceback
         app.logger.error(f"[complete_loot_upload_stacked_v2] TRACEBACK: {traceback.format_exc()}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+def require_teacher_token(f):
+    """Validate simple teacher token returned at login: 'teacher_<id>_<email>'"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.headers.get('Authorization') or request.headers.get('X-Teacher-Token')
+        if not auth:
+            return make_response(jsonify({"error": "Authorization header required"}), 401)
+        # Accept "Bearer <token>" or raw token
+        token = auth.split(' ').pop()
+        teacher_id = kwargs.get('teacher_id') or kwargs.get('teacherId') or None
+        if not teacher_id:
+            return make_response(jsonify({"error": "Teacher id required in path"}), 400)
+
+        # Find teacher and validate token matches simple format
+        teacher = mongo.db.Teachers.find_one({"_id": ObjectId(teacher_id)})
+        if not teacher:
+            return make_response(jsonify({"error": "Teacher not found"}), 404)
+
+        expected = f"teacher_{teacher_id}_{teacher.get('email')}"
+        if token != expected:
+            return make_response(jsonify({"error": "Invalid teacher token"}), 401)
+
+        return f(*args, **kwargs)
+    return decorated
+
+@app.route("/api/v1/teachers/<teacher_id>/award_coins", methods=["POST"])
+@require_teacher_token
+def teacher_award_coins(teacher_id):
+    """
+    Teacher can award coins to a student by providing:
+    { rfidUID: 'ABC123', coins: 5, note: 'optional' }
+    """
+    try:
+        data = request.json
+        if not data:
+            return make_response(jsonify({"error": "No data provided"}), 400)
+
+        rfid_uid = data.get('rfidUID')
+        coins = int(data.get('coins', 0))
+
+        if not rfid_uid:
+            return make_response(jsonify({"error": "rfidUID required"}), 400)
+        if coins <= 0:
+            return make_response(jsonify({"error": "coins must be > 0"}), 400)
+
+        result = mongo.db.Users.update_one({"rfidUID": rfid_uid}, {"$inc": {"coins": coins}})
+        if result.matched_count == 0:
+            return make_response(jsonify({"error": "No user found for given rfidUID"}), 404)
+
+        updated = mongo.db.Users.find_one({"rfidUID": rfid_uid}, {"_id": 0, "coins": 1, "name": 1})
+        return jsonify({
+            "message": f"Awarded {coins} coins to {updated.get('name', rfid_uid)}",
+            "totalCoins": updated.get('coins', 0)
+        }), 200
+
+    except Exception as e:
+        app.logger.error(f"Error in teacher_award_coins: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 if __name__ == "__main__":
