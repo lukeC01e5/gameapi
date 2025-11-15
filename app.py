@@ -168,7 +168,7 @@ def create_user_from_rfid():
             "warning": False,
             "message": "User created successfully",
             "userId": str(result.inserted_id)
-        }), 201
+        }, 201)
 
     except Exception as e:
         app.logger.error(f"Error creating user from RFID data: {str(e)}")
@@ -827,7 +827,6 @@ def complete_loot_upload_stacked():
         app.logger.error(f"[complete_loot_upload_stacked] ERROR: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
-# Add endpoint to decrement creature count when setting as main
 @app.route("/api/v1/users/<rfidUID>/set_main_creature_stacked", methods=["POST"])
 @require_api_key_optional
 def set_main_creature_stacked(rfidUID):
@@ -1163,8 +1162,10 @@ def complete_loot_upload_stacked_v2():
         add_coins = data.get('addCoins', 0)
         creatures = data.get('creatures', [])
         loot = data.get('loot', [])
+        challenge_code = data.get('challengeCode', '')  # ✅ ADD THIS LINE
         
         app.logger.info(f"[complete_loot_upload_stacked_v2] Processing - RFID: {rfid_uid}, Coins: {add_coins}")
+        app.logger.info(f"[complete_loot_upload_stacked_v2] Challenge Code: {challenge_code}")  # ✅ ADD THIS LINE
         app.logger.info(f"[complete_loot_upload_stacked_v2] Creatures: {creatures}")
         app.logger.info(f"[complete_loot_upload_stacked_v2] Loot: {loot}")
         
@@ -1197,7 +1198,6 @@ def complete_loot_upload_stacked_v2():
             
             if existing_creature:
                 app.logger.info(f"[complete_loot_upload_stacked_v2] Incrementing existing creature {creature_name} by {count}")
-                # Increment count
                 result = mongo.db.Users.update_one(
                     {"rfidUID": rfid_uid, "creatures.name": creature_name},
                     {"$inc": {"creatures.$.count": count}}
@@ -1205,7 +1205,6 @@ def complete_loot_upload_stacked_v2():
                 app.logger.info(f"[complete_loot_upload_stacked_v2] Creature increment result: {result.modified_count}")
             else:
                 app.logger.info(f"[complete_loot_upload_stacked_v2] Adding new creature {creature_name} with count {count}")
-                # Add new creature
                 result = mongo.db.Users.update_one(
                     {"rfidUID": rfid_uid},
                     {"$push": {"creatures": {
@@ -1218,7 +1217,7 @@ def complete_loot_upload_stacked_v2():
             
             creatures_processed += 1
         
-        # Process loot with stacking
+        # Process loot with stacking (existing code)
         for loot_data in loot:
             loot_name = loot_data.get("name")
             count = loot_data.get("count", 1)
@@ -1266,6 +1265,29 @@ def complete_loot_upload_stacked_v2():
             )
             app.logger.info(f"[complete_loot_upload_stacked_v2] Coin update result: {coin_result.modified_count}")
         
+        # ✅ ADD THIS SECTION - Store challenge code in array
+        if challenge_code and challenge_code != '':
+            app.logger.info(f"[complete_loot_upload_stacked_v2] Adding challenge code to array: {challenge_code}")
+            
+            # Add challenge code to challengeCodes array
+            # Format: { "code": "1115", "digit": 5, "timestamp": datetime }
+            # Extract the last digit (lives remaining)
+            lives_remaining = int(challenge_code[-1]) if challenge_code[-1].isdigit() else 0
+            base_code = challenge_code[:-1] if len(challenge_code) > 1 else challenge_code
+            
+            challenge_entry = {
+                "code": challenge_code,      # Full code (e.g., "1115")
+                "baseCode": base_code,       # Just the code part (e.g., "111")
+                "livesRemaining": lives_remaining,  # Last digit (e.g., 5)
+                "timestamp": datetime.datetime.utcnow()
+            }
+            
+            challenge_result = mongo.db.Users.update_one(
+                {"rfidUID": rfid_uid},
+                {"$push": {"challengeCodes": challenge_entry}}
+            )
+            app.logger.info(f"[complete_loot_upload_stacked_v2] Challenge code added: {challenge_result.modified_count}")
+        
         updated_user = mongo.db.Users.find_one({"rfidUID": rfid_uid})
         
         app.logger.info(f"[complete_loot_upload_stacked_v2] FINAL RESULT - User: {user['name']}, Creatures processed: {creatures_processed}, Loot processed: {loot_processed}, Total coins: {updated_user.get('coins', 0)}")
@@ -1275,6 +1297,7 @@ def complete_loot_upload_stacked_v2():
             "coinsAdded": add_coins,
             "creaturesProcessed": creatures_processed,
             "lootProcessed": loot_processed,
+            "challengeCodeAdded": challenge_code if challenge_code else None,  # ✅ ADD THIS LINE
             "totalCoins": updated_user.get("coins", 0)
         }), 200)
         
