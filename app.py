@@ -221,14 +221,17 @@ def get_custom_names():
 @require_api_key_optional
 def get_users():
     try:
-        # Check if this is an ESP32 request for a specific user
+        # Check if this is a request for a specific user by RFID
         rfid_uid = request.args.get("rfidUID")
         if rfid_uid:
-            # ESP32 request - get specific user by RFID with only name
-            user = mongo.db.Users.find_one({"rfidUID": rfid_uid}, {"_id": 0, "name": 1})
+            # Get specific user with ALL data including challengeCodes
+            user = mongo.db.Users.find_one(
+                {"rfidUID": rfid_uid},
+                {"_id": 0, "password": 0}  # Exclude only sensitive fields
+            )
             if not user:
                 return make_response(jsonify({"error": "No user found for the given rfidUID"}), 404)
-            return jsonify({"playerName": user["name"]}), 200
+            return jsonify(user), 200
         else:
             # Website request - get all users (without sensitive data)
             users = mongo.db.Users.find({}, {"_id": 0, "name": 1, "playerClass": 1, "coins": 1, "creatures": 1, "artifacts": 1, "loot": 1})
