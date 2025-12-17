@@ -1378,6 +1378,78 @@ def teacher_award_coins(teacher_id):
         app.logger.error(f"Error in teacher_award_coins: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
+@app.route("/api/v1/purchase_item", methods=["POST"])
+@require_api_key_strict
+def purchase_item():
+    """
+    ESP32 shop endpoint - handles item purchases
+    Expects: { "rfidUID": "...", "itemName": "...", "itemCost": ... }
+    Returns: { "success": true, "newCoinBalance": ..., "itemPurchased": "..." }
+    """
+    try:
+        data = request.get_json()
+        
+        rfid_uid = data.get('rfidUID')
+        item_name = data.get('itemName')
+        item_cost = data.get('itemCost')
+        
+        # Validate input
+        if not rfid_uid:
+            return make_response(jsonify({"error": "rfidUID required"}), 400)
+        if not item_name:
+            return make_response(jsonify({"error": "itemName required"}), 400)
+        if not item_cost or item_cost <= 0:
+            return make_response(jsonify({"error": "itemCost must be > 0"}), 400)
+        
+        # Find user
+        user = mongo.db.Users.find_one({"rfidUID": rfid_uid})
+        if not user:
+            return make_response(jsonify({"error": "User not found"}), 404)
+        
+        # Check if user has enough coins
+        current_coins = user.get('coins', 0)
+        if current_coins < item_cost:
+            return make_response(jsonify({
+                "error": "Not enough coins",
+                "currentCoins": current_coins,
+                "itemCost": item_cost
+            }), 400)
+        
+        # Calculate new balance
+        new_balance = current_coins - item_cost
+        
+        # Update user - deduct coins and add item to purchasedItems array
+        result = mongo.db.Users.update_one(
+            {"rfidUID": rfid_uid},
+            {
+                "$set": {"coins": new_balance},
+                "$push": {
+                    "purchasedItems": {
+                        "itemName": item_name,
+                        "cost": item_cost,
+                        "purchaseDate": datetime.datetime.utcnow()
+                    }
+                }
+            }
+        )
+        
+        if result.modified_count == 0:
+            return make_response(jsonify({"error": "Failed to update user"}), 500)
+        
+        app.logger.info(f"User {rfid_uid} purchased {item_name} for {item_cost} coins. New balance: {new_balance}")
+        
+        return jsonify({
+            "success": True,
+            "message": f"Successfully purchased {item_name}",
+            "itemPurchased": item_name,
+            "itemCost": item_cost,
+            "newCoinBalance": new_balance
+        }), 200
+        
+    except Exception as e:
+        app.logger.error(f"Error in purchase_item: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(debug=True, host="0.0.0.0", port=port)
