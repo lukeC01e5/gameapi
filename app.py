@@ -1106,20 +1106,14 @@ def get_teacher_profile_classes():
         
         classes = list(mongo.db.Users.aggregate(pipeline))
         
-        # Format classes for dropdown
-        formatted_classes = []
-        for cls in classes:
-            class_name = cls["_id"]
-            formatted_classes.append({
-                "id": class_name,
-                "name": class_name
-            })
+        # Extract just the class names as strings
+        formatted_classes = [cls["_id"] for cls in classes]
         
         # If no classes found in DB, return defaults
         if not formatted_classes:
             formatted_classes = [
-                {"id": "Kaitoke / Kowhai", "name": "Kaitoke / Kowhai"},
-                {"id": "Kaitoke / Kauri", "name": "Kaitoke / Kauri"}
+                "Kaitoke / Kowhai",
+                "Kaitoke / Kauri"
             ]
 
         app.logger.info(f"Fetched {len(formatted_classes)} available classes")
