@@ -232,11 +232,23 @@ def get_users():
             if not user:
                 return make_response(jsonify({"error": "No user found for the given rfidUID"}), 404)
             return jsonify(user), 200
-        else:
-            # Website request - get all users (without sensitive data)
-            users = mongo.db.Users.find({}, {"_id": 0, "name": 1, "playerClass": 1, "coins": 1, "creatures": 1, "artifacts": 1, "loot": 1})
+        
+        # Check if filtering by playerClass
+        player_class = request.args.get("playerClass")
+        if player_class:
+            # Get users for specific class with full data including purchasedItems
+            users = mongo.db.Users.find(
+                {"playerClass": player_class},
+                {"_id": 0, "name": 1, "playerClass": 1, "coins": 1, "creatures": 1, "artifacts": 1, "loot": 1, "rfidUID": 1, "purchasedItems": 1}
+            )
             users_list = list(users)
+            app.logger.info(f"Fetched {len(users_list)} users for class: {player_class}")
             return jsonify(users_list), 200
+        
+        # No filters - get all users (without sensitive data)
+        users = mongo.db.Users.find({}, {"_id": 0, "name": 1, "playerClass": 1, "coins": 1, "creatures": 1, "artifacts": 1, "loot": 1, "rfidUID": 1})
+        users_list = list(users)
+        return jsonify(users_list), 200
     except Exception as e:
         app.logger.error(f"Error fetching users: {str(e)}")
         return jsonify({"error": str(e)}), 500
