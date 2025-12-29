@@ -1079,11 +1079,62 @@ def get_class_students(teacher_id, class_id):
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 
-# Optional: Get teacher profile
+# Public endpoint: Get all available classes (no auth required)
+@app.route("/api/v1/teachers/profile", methods=["GET"])
+@require_api_key_optional
+def get_teacher_profile_classes():
+    """Get all available classes from students in the database"""
+    try:
+        # Get all unique playerClass values from the Users collection
+        pipeline = [
+            {"$group": {"_id": "$playerClass"}},
+            {"$match": {"_id": {"$ne": None}}},
+            {"$sort": {"_id": 1}}
+        ]
+        
+        classes = list(mongo.db.Users.aggregate(pipeline))
+        
+        # Format classes for dropdown
+        formatted_classes = []
+        for cls in classes:
+            class_name = cls["_id"]
+            formatted_classes.append({
+                "id": class_name,
+                "name": class_name
+            })
+        
+        # If no classes found in DB, return defaults
+        if not formatted_classes:
+            formatted_classes = [
+                {"id": "Kaitoke / Kowhai", "name": "Kaitoke / Kowhai"},
+                {"id": "Kaitoke / Kauri", "name": "Kaitoke / Kauri"}
+            ]
+
+        app.logger.info(f"Fetched {len(formatted_classes)} available classes")
+
+        return jsonify({
+            "classes": formatted_classes,
+            "message": "Classes retrieved successfully"
+        }), 200
+
+    except Exception as e:
+        app.logger.error(f"Error getting teacher profile classes: {str(e)}")
+        app.logger.error(f"Traceback: {traceback.format_exc()}")
+        # Return fallback classes even on error
+        return jsonify({
+            "classes": [
+                {"id": "Kaitoke / Kowhai", "name": "Kaitoke / Kowhai"},
+                {"id": "Kaitoke / Kauri", "name": "Kaitoke / Kauri"}
+            ],
+            "message": "Using default classes"
+        }), 200
+
+
+# Optional: Get teacher profile by ID
 @app.route("/api/v1/teachers/<teacher_id>", methods=["GET"])
 @require_api_key_optional
-def get_teacher_profile(teacher_id):
-    """Get teacher profile information"""
+def get_teacher_by_id(teacher_id):
+    """Get teacher profile information by teacher ID"""
     try:
         teacher = mongo.db.Teachers.find_one(
             {"_id": ObjectId(teacher_id)},
@@ -1096,7 +1147,7 @@ def get_teacher_profile(teacher_id):
         return jsonify(teacher), 200
 
     except Exception as e:
-        app.logger.error(f"Error getting teacher profile: {str(e)}")
+        app.logger.error(f"Error getting teacher by ID: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 
