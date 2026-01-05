@@ -130,6 +130,8 @@ def create_user_from_rfid():
         password = data.get("password")
         rfidUID = data.get("rfidUID")
         playerClass = data.get("playerClass")
+        gender = data.get("gender", "")  # NEW field
+        character = data.get("character", "")  # NEW field
         mainCreature = data.get("mainCreature", "")
         challengeCodes = data.get("challengeCodes", [])
         creatures = data.get("creatures", [])
@@ -154,6 +156,8 @@ def create_user_from_rfid():
             "password": password,
             "rfidUID": rfidUID,
             "playerClass": playerClass,
+            "gender": gender,        # NEW field
+            "character": character,  # NEW field
             "mainCreature": mainCreature,
             "challengeCodes": challengeCodes,
             "creatures": creatures,
