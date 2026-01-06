@@ -243,7 +243,7 @@ def get_users():
             # Get users for specific class with full data including purchasedItems
             users = mongo.db.Users.find(
                 {"playerClass": player_class},
-                {"_id": 0, "name": 1, "playerClass": 1, "coins": 1, "creatures": 1, "artifacts": 1, "loot": 1, "rfidUID": 1, "purchasedItems": 1}
+                {"_id": 0, "name": 1, "playerClass": 1, "coins": 1, "creatures": 1, "artifacts": 1, "loot": 1, "rfidUID": 1, "purchasedItems": 1, "character": 1, "gender": 1}
             )
             users_list = list(users)
             app.logger.info(f"Fetched {len(users_list)} users for class: {player_class}")
