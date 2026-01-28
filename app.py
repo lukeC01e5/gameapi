@@ -243,7 +243,7 @@ def get_users():
             # Get users for specific class with full data including purchasedItems
             users = mongo.db.Users.find(
                 {"playerClass": player_class},
-                {"_id": 0, "name": 1, "playerClass": 1, "coins": 1, "creatures": 1, "artifacts": 1, "loot": 1, "rfidUID": 1, "purchasedItems": 1, "character": 1, "gender": 1}
+                {"_id": 0, "name": 1, "playerClass": 1, "coins": 1, "creatures": 1, "artifacts": 1, "loot": 1, "rfidUID": 1, "purchasedItems": 1, "currentLocation": 1, "character": 1, "gender": 1}
             )
             users_list = list(users)
             app.logger.info(f"Fetched {len(users_list)} users for class: {player_class}")
@@ -1509,6 +1509,91 @@ def purchase_item():
         
     except Exception as e:
         app.logger.error(f"Error in purchase_item: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+
+@app.route("/api/v1/users/<rfidUID>/use_travel_item", methods=["POST"])
+@require_api_key_optional
+def use_travel_item(rfidUID):
+    """Consume a travel item and move the user.
+
+    - Sets `currentLocation` to the destination nodeId
+    - Removes exactly one matching entry from `purchasedItems`
+
+    Expects JSON:
+      { "itemName": "boatTicketForest" }
+    Optional:
+      { "destinationNodeId": "HF" }  # overrides mapping if provided
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+
+        item_name = data.get("itemName")
+        if not item_name:
+            return make_response(jsonify({"error": "itemName is required"}), 400)
+
+        destination_node_id = data.get("destinationNodeId")
+
+        # Map travel items to their destinations (node IDs).
+        # Includes a couple legacy aliases (boatTick*) to match older mock data.
+        ITEM_TO_DESTINATION = {
+            "boatTicketForest": "HF",  # Greenwood Harbour
+            "boatTicketLava": "HL",    # Lavastone Harbour
+            "boatTicketWater": "HW",   # Water Harbour
+            "boatTickForest": "HF",
+            "boatTickLava": "HL",
+            "boatTickWater": "HW",
+        }
+
+        destination = destination_node_id or ITEM_TO_DESTINATION.get(item_name)
+        if not destination:
+            return make_response(jsonify({"error": f"Unknown travel item or destination missing: {item_name}"}), 400)
+
+        user = mongo.db.Users.find_one({"rfidUID": rfidUID})
+        if not user:
+            return make_response(jsonify({"error": "User not found"}), 404)
+
+        purchased_items = user.get("purchasedItems", []) or []
+        if not isinstance(purchased_items, list):
+            return make_response(jsonify({"error": "User purchasedItems is not a list"}), 500)
+
+        # Remove exactly one matching purchased item.
+        new_purchased_items = []
+        removed = False
+        for entry in purchased_items:
+            entry_item_name = entry.get("itemName") if isinstance(entry, dict) else entry
+            if not removed and entry_item_name == item_name:
+                removed = True
+                continue
+            new_purchased_items.append(entry)
+
+        if not removed:
+            return make_response(jsonify({"error": f"User does not have {item_name}"}), 400)
+
+        updated_user = mongo.db.Users.find_one_and_update(
+            {"rfidUID": rfidUID},
+            {"$set": {"currentLocation": destination, "purchasedItems": new_purchased_items}},
+            return_document=True,
+        )
+
+        app.logger.info(f"✅ User {rfidUID} used {item_name} to travel to {destination}")
+
+        # Keep response minimal but useful.
+        return make_response(
+            jsonify(
+                {
+                    "success": True,
+                    "message": f"Traveled to {destination}",
+                    "currentLocation": destination,
+                    "itemUsed": item_name,
+                    "purchasedItems": (updated_user or {}).get("purchasedItems", new_purchased_items),
+                }
+            ),
+            200,
+        )
+
+    except Exception as e:
+        app.logger.error(f"Error using travel item: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 if __name__ == "__main__":
