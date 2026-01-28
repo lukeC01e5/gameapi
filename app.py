@@ -163,7 +163,9 @@ def create_user_from_rfid():
             "creatures": creatures,
             "artifacts": artifacts,
             "loot": loot,  # Add this line
-            "coins": 0     # Initialize coins to 0
+            "coins": 0,     # Initialize coins to 0
+            "purchasedItems": [],
+            "currentLocation": "H"
         }
 
         result = mongo.db.Users.insert_one(user)
