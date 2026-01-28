@@ -1,6 +1,6 @@
 from flask import Flask, Response, render_template, request, jsonify, make_response
 from dotenv import load_dotenv
-from pymongo import MongoClient
+from pymongo import MongoClient, ReturnDocument
 from bson.json_util import dumps
 from bson.objectid import ObjectId
 from flask_pymongo import PyMongo
@@ -1573,7 +1573,7 @@ def use_travel_item(rfidUID):
         updated_user = mongo.db.Users.find_one_and_update(
             {"rfidUID": rfidUID},
             {"$set": {"currentLocation": destination, "purchasedItems": new_purchased_items}},
-            return_document=True,
+            return_document=ReturnDocument.AFTER,
         )
 
         app.logger.info(f"✅ User {rfidUID} used {item_name} to travel to {destination}")
@@ -1586,7 +1586,6 @@ def use_travel_item(rfidUID):
                     "message": f"Traveled to {destination}",
                     "currentLocation": destination,
                     "itemUsed": item_name,
-                    "purchasedItems": (updated_user or {}).get("purchasedItems", new_purchased_items),
                 }
             ),
             200,
