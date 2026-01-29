@@ -1597,6 +1597,59 @@ def use_travel_item(rfidUID):
         app.logger.error(f"Error using travel item: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
+
+@app.route("/api/v1/users/<rfidUID>/refresh_now", methods=["POST"])
+@require_api_key_strict
+def refresh_now(rfidUID):
+    """Signal the big screen to refresh now for a user's class."""
+    try:
+        user = mongo.db.Users.find_one({"rfidUID": rfidUID}, {"playerClass": 1, "_id": 0})
+        if not user:
+            return make_response(jsonify({"error": "User not found"}), 404)
+
+        player_class = user.get("playerClass")
+        if not player_class:
+            return make_response(jsonify({"error": "User has no playerClass"}), 400)
+
+        now = datetime.datetime.utcnow()
+
+        mongo.db.ClassRefresh.update_one(
+            {"classId": player_class},
+            {"$set": {"classId": player_class, "refreshedAt": now}},
+            upsert=True,
+        )
+
+        return jsonify({
+            "classId": player_class,
+            "refreshedAt": now.isoformat() + "Z"
+        }), 200
+
+    except Exception as e:
+        app.logger.error(f"Error in refresh_now: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+
+@app.route("/api/v1/classes/<path:class_id>/refresh_now", methods=["GET"])
+@require_api_key_optional
+def get_refresh_now(class_id):
+    """Get the last refresh signal timestamp for a class."""
+    try:
+        record = mongo.db.ClassRefresh.find_one({"classId": class_id}, {"_id": 0, "classId": 1, "refreshedAt": 1})
+        refreshed_at = record.get("refreshedAt") if record else None
+
+        refreshed_at_str = None
+        if isinstance(refreshed_at, datetime.datetime):
+            refreshed_at_str = refreshed_at.isoformat() + "Z"
+
+        return jsonify({
+            "classId": class_id,
+            "refreshedAt": refreshed_at_str
+        }), 200
+
+    except Exception as e:
+        app.logger.error(f"Error in get_refresh_now: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(debug=True, host="0.0.0.0", port=port)
