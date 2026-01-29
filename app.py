@@ -259,6 +259,21 @@ def get_users():
         app.logger.error(f"Error fetching users: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/api/v1/classes', methods=['GET'])
+@require_api_key_optional
+def get_classes():
+    """Return distinct playerClass values."""
+    try:
+        classes = mongo.db.Users.distinct("playerClass")
+        # Remove empty/null values and sort for consistency
+        classes = [c for c in classes if c]
+        classes.sort()
+        return jsonify(classes), 200
+    except Exception as e:
+        app.logger.error(f"Error fetching classes: {str(e)}")
+        return jsonify({"error": "Internal Server Error"}), 500
+
 # ESP32 specific endpoints
 @app.route("/api/v1/users/<rfidUID>/add_creature", methods=["POST"])
 @require_api_key_strict
@@ -1595,6 +1610,32 @@ def use_travel_item(rfidUID):
 
     except Exception as e:
         app.logger.error(f"Error using travel item: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+
+@app.route("/api/v1/users/<rfidUID>/set_class", methods=["POST"])
+@require_api_key_optional
+def set_class(rfidUID):
+    """Update a user's playerClass."""
+    try:
+        data = request.get_json(silent=True) or {}
+        player_class = data.get("playerClass")
+
+        if not player_class:
+            return make_response(jsonify({"error": "playerClass is required"}), 400)
+
+        result = mongo.db.Users.update_one(
+            {"rfidUID": rfidUID},
+            {"$set": {"playerClass": player_class}}
+        )
+
+        if result.matched_count == 0:
+            return make_response(jsonify({"error": "User not found"}), 404)
+
+        return jsonify({"rfidUID": rfidUID, "playerClass": player_class}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error setting class: {str(e)}")
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 
