@@ -103,3 +103,69 @@ def set_location(rfidUID):
     except Exception as e:
         app.logger.error(f"Error setting location: {str(e)}")
         return make_response(jsonify({"error": str(e)}), 500)
+
+
+@app.route("/api/v1/users/<rfidUID>/use_seize_power", methods=["POST"])
+@require_api_key_strict
+def use_seize_power(rfidUID):
+    """
+    Use SeizePower to take over the Lordship of the current location.
+    Rules:
+    - Player must have purchased a SeizePower item
+    - Player must be at a location (currentLocation)
+    - Automatically removes LordOf from previous lord (if any), sends them to 'H'
+    - Sets activating player's lordOf to the location and removes the item
+    """
+    try:
+        # Find activating user
+        activator = mongo.db.Users.find_one({"rfidUID": rfidUID})
+        if not activator:
+            return make_response(jsonify({"error": "User not found"}), 404)
+
+        current_location = activator.get("currentLocation")
+        if not current_location:
+            return make_response(jsonify({"error": "Activator has no currentLocation"}), 400)
+
+        # Check purchased items for SeizePower (accept several variants)
+        purchased_items = activator.get("purchasedItems", [])
+        has_seize = any(
+            (item.get("itemName") or "").lower() in ("seizepower", "seize_power", "seize-power")
+            for item in purchased_items
+        )
+
+        if not has_seize:
+            return make_response(jsonify({"error": "User does not have SeizePower"}), 400)
+
+        # Find current lord (if any)
+        current_lord = mongo.db.Users.find_one({"lordOf": current_location})
+
+        # If current lord exists and is different from activator, demote them
+        previous_lord_id = None
+        if current_lord and current_lord.get("rfidUID") != rfidUID:
+            previous_lord_id = current_lord.get("rfidUID")
+            mongo.db.Users.update_one(
+                {"rfidUID": current_lord.get("rfidUID")},
+                {"$set": {"lordOf": None, "currentLocation": "H"}}
+            )
+
+        # Promote activator: set lordOf and remove the SeizePower item
+        mongo.db.Users.update_one(
+            {"rfidUID": rfidUID},
+            {
+                "$set": {"lordOf": current_location},
+                "$pull": {"purchasedItems": {"itemName": {"$in": ["SeizePower", "seizePower", "seize_power", "seize-power"]}}}
+            }
+        )
+
+        app.logger.info(f"✅ User {rfidUID} seized power at {current_location} (prev: {previous_lord_id})")
+
+        return make_response(jsonify({
+            "message": "SeizePower used",
+            "location": current_location,
+            "previousLord": previous_lord_id,
+            "newLord": rfidUID
+        }), 200)
+
+    except Exception as e:
+        app.logger.error(f"Error using SeizePower: {str(e)}")
+        return make_response(jsonify({"error": str(e)}), 500)
