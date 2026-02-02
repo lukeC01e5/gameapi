@@ -43,6 +43,13 @@ app.config["MONGO_URI"] = os.getenv('MONGO_URI')
 
 mongo = PyMongo(app)
 
+# Import extra route modules so their endpoints are registered
+# This file defines additional routes such as /use_seize_power
+try:
+    from travel_item_endpoint import *  # noqa: F401,F403
+except Exception as _e:
+    app.logger.debug(f"Optional import travel_item_endpoint failed: {_e}")
+
 
 # ==========================================
 # TEACHER ENDPOINTS (NEW)
