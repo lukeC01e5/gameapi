@@ -1619,6 +1619,92 @@ def use_travel_item(rfidUID):
         return make_response(jsonify({"error": "Internal Server Error"}), 500)
 
 
+@app.route("/api/v1/users/<rfidUID>/set_location", methods=["POST"])
+@require_api_key_optional
+def set_location(rfidUID):
+    """Directly set a user's currentLocation (admin/teacher use)."""
+    try:
+        data = request.get_json(silent=True) or {}
+        location = data.get("location")
+
+        if not location:
+            return make_response(jsonify({"error": "location is required"}), 400)
+
+        result = mongo.db.Users.update_one(
+            {"rfidUID": rfidUID},
+            {"$set": {"currentLocation": location}}
+        )
+
+        if result.matched_count == 0:
+            return make_response(jsonify({"error": "User not found"}), 404)
+
+        app.logger.info(f"✅ Set location for {rfidUID} to {location}")
+
+        return make_response(jsonify({
+            "message": f"Location set to {location}",
+            "currentLocation": location
+        }), 200)
+
+    except Exception as e:
+        app.logger.error(f"Error setting location: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+
+@app.route("/api/v1/users/<rfidUID>/use_seize_power", methods=["POST"])
+@require_api_key_strict
+def use_seize_power(rfidUID):
+    """Use SeizePower to take over Lordship of the current location."""
+    try:
+        activator = mongo.db.Users.find_one({"rfidUID": rfidUID})
+        if not activator:
+            return make_response(jsonify({"error": "User not found"}), 404)
+
+        current_location = activator.get("currentLocation")
+        if not current_location:
+            return make_response(jsonify({"error": "Activator has no currentLocation"}), 400)
+
+        purchased_items = activator.get("purchasedItems", [])
+        has_seize = any(
+            (item.get("itemName") or "").lower() in ("seizepower", "seize_power", "seize-power")
+            for item in purchased_items
+            if isinstance(item, dict)
+        )
+
+        if not has_seize:
+            return make_response(jsonify({"error": "User does not have SeizePower"}), 400)
+
+        current_lord = mongo.db.Users.find_one({"lordOf": current_location})
+
+        previous_lord_id = None
+        if current_lord and current_lord.get("rfidUID") != rfidUID:
+            previous_lord_id = current_lord.get("rfidUID")
+            mongo.db.Users.update_one(
+                {"rfidUID": current_lord.get("rfidUID")},
+                {"$set": {"lordOf": None, "currentLocation": "H"}}
+            )
+
+        mongo.db.Users.update_one(
+            {"rfidUID": rfidUID},
+            {
+                "$set": {"lordOf": current_location},
+                "$pull": {"purchasedItems": {"itemName": {"$regex": "^seize", "$options": "i"}}}
+            }
+        )
+
+        app.logger.info(f"✅ User {rfidUID} seized power at {current_location} (prev: {previous_lord_id})")
+
+        return make_response(jsonify({
+            "message": "SeizePower used",
+            "location": current_location,
+            "previousLord": previous_lord_id,
+            "newLord": rfidUID
+        }), 200)
+
+    except Exception as e:
+        app.logger.error(f"Error using SeizePower: {str(e)}")
+        return make_response(jsonify({"error": "Internal Server Error"}), 500)
+
+
 @app.route("/api/v1/users/<rfidUID>/set_class", methods=["POST"])
 @require_api_key_optional
 def set_class(rfidUID):
