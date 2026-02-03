@@ -1567,6 +1567,12 @@ def use_travel_item(rfidUID):
             "boatTickForest": "HF",
             "boatTickLava": "HL",
             "boatTickWater": "HW",
+            "wagonRide": "FT",         # Town of Greenwood
+            "machete": "WT",           # Town of Bluehaven
+            "lavaBoots": "LT",         # Castle Emberfall
+            "donkeyRide": "MP",        # Mountain Pass
+            "forestMap": "CF",         # Forest Gate
+            "gasMask": "CL",           # Ashwood Pass
         }
 
         destination = destination_node_id or ITEM_TO_DESTINATION.get(item_name)
