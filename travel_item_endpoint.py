@@ -148,12 +148,13 @@ def use_seize_power(rfidUID):
                 {"$set": {"lordOf": None, "currentLocation": "H"}}
             )
 
-        # Promote activator: set lordOf and remove the SeizePower item
+        # Promote activator: set lordOf and remove any SeizePower item (case-insensitive)
         mongo.db.Users.update_one(
             {"rfidUID": rfidUID},
             {
                 "$set": {"lordOf": current_location},
-                "$pull": {"purchasedItems": {"itemName": {"$in": ["SeizePower", "seizePower", "seize_power", "seize-power"]}}}
+                # Pull any purchasedItems where itemName starts with 'seize' (case-insensitive)
+                "$pull": {"purchasedItems": {"itemName": {"$regex": "^seize", "$options": "i"}}}
             }
         )
 
