@@ -84,13 +84,6 @@ def require_api_key_strict(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Import extra route modules so their endpoints are registered
-# This file defines additional routes such as /use_seize_power
-try:
-    from travel_item_endpoint import *  # noqa: F401,F403
-except Exception as _e:
-    app.logger.debug(f"Optional import travel_item_endpoint failed: {_e}")
-
 @app.route("/")
 def index():
     return render_template("index.html")
